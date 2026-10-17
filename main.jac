@@ -103,10 +103,10 @@ def:pub app -> JsxElement {
         } except Exception {}
         try {
             live_articles: list[dict] = (await fetch_live_articles()) as list[dict];
+            offline = False;
             if len(live_articles) > 0 {
                 server_articles = live_articles;
                 localStorage.setItem("lankapulse_feed_cache", JSON.stringify(server_articles));
-                offline = False;
                 feed_notice = "";
             } else {
                 feed_notice = "Live feeds are quiet right now. Showing saved headlines.";
@@ -128,10 +128,10 @@ def:pub app -> JsxElement {
     async def loadSearchResults(query: str) {
         try {
             live_results: list[dict] = (await fetch_live_articles(query, 1)) as list[dict];
+            offline = False;
             if len(live_results) > 0 {
                 server_articles = live_results;
                 localStorage.setItem("lankapulse_feed_cache", JSON.stringify(server_articles));
-                offline = False;
                 feed_notice = "";
             } elif query and not offline {
                 feed_notice = "No live stories match that search." if len(server_articles) == 0 else "";
@@ -196,10 +196,10 @@ def:pub app -> JsxElement {
         refreshing = True;
         try {
             live_articles: list[dict] = (await fetch_live_articles(search_query, 1)) as list[dict];
+            offline = False;
             if len(live_articles) > 0 {
                 server_articles = live_articles;
                 localStorage.setItem("lankapulse_feed_cache", JSON.stringify(server_articles));
-                offline = False;
                 feed_notice = "";
             } elif len(server_articles) == 0 {
                 feed_notice = "Live feeds are quiet right now. Showing sample headlines.";
@@ -262,7 +262,7 @@ def:pub app -> JsxElement {
         <View style={styles.searchRow}><Text style={styles.searchIcon}>⌕</Text><TextInput style={styles.searchInput} value={search_input} placeholder={tr["search"]} placeholderTextColor={palette["muted"]} onChangeText={lambda (value: str) { scheduleSearch(value); }} onSubmitEditing={lambda { rememberSearch(search_input); search_query = search_input.strip(); loadSearchResults(search_input.strip()); }} />{if search_input != "" { <Pressable onPress={lambda { scheduleSearch(""); search_query = ""; }}><Text style={styles.searchIcon}>×</Text></Pressable> }}</View>
         {if len(recent_searches) > 0 and search_input == "" { <View style={styles.recentRow}>{[<Pressable key={recent} style={styles.recentChip} onPress={lambda { search_input = recent; search_query = recent; loadSearchResults(recent); }}><Text style={styles.recentText}>{recent}</Text></Pressable> for recent in recent_searches]}</View> }}
         <View style={styles.sectionRow}><Text style={styles.sectionTitle}>{tr["saved"] if saved_only else tr["stories"]}</Text><View style={styles.previewRow}><Pressable style={styles.savedMode} onPress={lambda { saved_only = not saved_only; visible_count = 20; }}><Text style={styles.refreshText}>{"All stories" if saved_only else "Saved · " + str(saved_total)}</Text></Pressable><Pressable style={styles.refreshButton} onPress={refreshArticles}><Text style={styles.refreshText}>{tr["refresh"] if not refreshing else "…"}</Text></Pressable></View></View>
-        {if offline { <View style={styles.offlineBanner}><View style={styles.offlineDot}/><Text style={styles.offlineText}>{tr["offline"]}</Text></View> }}
+        {if offline { <View style={styles.offlineBanner}><View style={styles.offlineDot}/><Text style={styles.offlineText}>{tr["offline"]}</Text><Pressable style={styles.offlineRetry} onPress={refreshArticles}><Text style={styles.offlineRetryText}>Retry</Text></Pressable></View> }}
         {if feed_notice != "" { <View style={styles.empty}><Text style={styles.emptyText}>{feed_notice}</Text><Pressable style={styles.detailClose} onPress={refreshArticles}><Text style={styles.detailCloseText}>Retry</Text></Pressable></View> }}
         {if loading { <View style={styles.skeletonCard}><View style={styles.skeletonImage}/><View style={styles.skeletonWide}/><View style={styles.skeletonBlock}/><View style={styles.skeletonShort}/></View> }}
         <ScrollView horizontal={True} showsHorizontalScrollIndicator={False} style={styles.categoryScroll} contentContainerStyle={styles.categoryRow}>{[<Pressable key={item} style={styles.categoryChipActive if category == item else styles.categoryChip} onPress={lambda { category = item; visible_count = 6; empty_demo = False; }}><Text style={styles.categoryChipTextActive if category == item else styles.categoryChipText}>{item}</Text></Pressable> for item in CATEGORIES]}</ScrollView>
