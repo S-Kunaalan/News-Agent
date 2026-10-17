@@ -11,7 +11,7 @@ import from email.utils { parsedate_to_datetime }
 import from http { HTTPMethod }
 import from jaclang.byllm.lib { Model }
 
-glob:priv summary_llm: Model = Model(model_name="gpt-4o-mini");
+glob:priv summary_llm: Model = Model(model_name="gemini/gemini-3.8-flash", api_key=os.environ.get("Gemini_API_Key", ""));
 glob:priv summary_calls: dict[str, list[float]] = {};
 
 obj ArticleSummary {
@@ -19,7 +19,7 @@ obj ArticleSummary {
 }
 sem ArticleSummary.bullets = "Exactly three concise English bullet points. Each is one sentence, faithful only to the supplied headline and snippet, and contains no invented details.";
 
-def:priv summarize_headline(title: str, snippet: str) -> ArticleSummary by summary_llm(temperature=0.2, max_tokens=220);
+def:priv summarize_headline(title: str, snippet: str) -> ArticleSummary by summary_llm(temperature=1.0, max_tokens=220);
 sem summarize_headline = "Create a short English-only news summary with exactly three bullet points, using only the supplied title and snippet. Never infer missing facts.";
 sem summarize_headline.title = "The article headline.";
 sem summarize_headline.snippet = "The publisher-provided short snippet. Do not add facts beyond it.";

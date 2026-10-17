@@ -254,7 +254,7 @@ def:pub app -> JsxElement {
                 <View style={styles.topicGrid}>{[<Pressable key={mode} style={styles.categoryChipActive if theme_mode == mode else styles.categoryChip} onPress={lambda { setTheme(mode); }}><Text style={styles.categoryChipTextActive if theme_mode == mode else styles.categoryChipText}>{mode}</Text></Pressable> for mode in ["light", "dark", "system"]]}</View>
                 <Text style={styles.category}>{(tr["font"] as str) + ": " + str(font_scale + 1)}</Text>
                 <View style={styles.previewRow}><Pressable style={styles.detailClose} onPress={lambda { font_scale = max(0, font_scale - 1); persistSettings(); }}><Text style={styles.detailCloseText}>A−</Text></Pressable><Pressable style={styles.detailClose} onPress={lambda { font_scale = min(2, font_scale + 1); persistSettings(); }}><Text style={styles.detailCloseText}>A+</Text></Pressable></View>
-                <Text style={styles.aiDisclosure}>AI summaries use OPENAI_API_KEY from the server environment. Add it in JacHammer Settings → Environment, then restart the preview.</Text>
+                <Text style={styles.aiDisclosure}>AI summaries use Gemini. Add Gemini_API_Key in JacHammer Settings → Environment, then restart the preview.</Text>
                 <Pressable style={styles.detailActionSecondary} onPress={lambda { notifications_on = not notifications_on; persistSettings(); }}><Text style={styles.detailActionSecondaryText}>{(tr["notifications"] as str) + ": " + ("On" if notifications_on else "Off")}</Text></Pressable>
             </View>
         }}
