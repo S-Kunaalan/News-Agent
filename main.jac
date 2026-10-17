@@ -187,8 +187,9 @@ def:pub app -> JsxElement {
         }
     }
     def toggleSaved(article_id: str) {
-        saved_ids = [sid for sid in saved_ids if sid != article_id] if article_id in saved_ids else saved_ids + [article_id];
-        localStorage.setItem("lankapulse_saved_ids", JSON.stringify(saved_ids));
+        next_saved_ids: list[str] = [sid for sid in saved_ids if sid != article_id] if article_id in saved_ids else saved_ids + [article_id];
+        saved_ids = next_saved_ids;
+        localStorage.setItem("lankapulse_saved_ids", JSON.stringify(next_saved_ids));
     }
     async def makeArticleSummary {
         summary_loading = True;
