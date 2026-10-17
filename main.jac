@@ -1,14 +1,14 @@
 """LankaPulse home feed with mock stories and reader-friendly controls."""
 
-import from "@jac/mobui" { View, Text, Pressable, ScrollView, Image, useWindowDimensions }
+import from "@jac/mobui" { View, Text, Pressable, ScrollView, Image, TextInput, useWindowDimensions }
 import from services.articles { get_articles, articles_rest }
 import from .theme { LIGHT, DARK, buildStyles }
 
 glob lightStyles = buildStyles(LIGHT);
 glob darkStyles = buildStyles(DARK);
 
-async def fetch_live_articles() -> list[dict] {
-    response = await fetch("/function/get_articles", {"method": "POST", "headers": {"Content-Type": "application/json"}, "body": JSON.stringify({"region": "", "category": "", "q": "", "page": 1, "page_size": 20})});
+async def fetch_live_articles(query: str = "", page: int = 1) -> list[dict] {
+    response = await fetch("/function/get_articles", {"method": "POST", "headers": {"Content-Type": "application/json"}, "body": JSON.stringify({"region": "", "category": "", "q": query, "page": page, "page_size": 20})});
     payload = await response.json();
     data: dict = payload["data"] as dict;
     result: dict = data["result"] as dict;
@@ -52,46 +52,110 @@ glob ARTICLES: list[dict] = [
 def:pub app -> JsxElement {
     has dark_mode: bool = False,
         category: str = "All",
+        search_input: str = "",
+        search_query: str = "",
         saved_ids: list[str] = [],
+        recent_searches: list[str] = [],
         server_articles: list[dict] = [],
         visible_count: int = 6,
         refreshing: bool = False,
         loading: bool = True,
+        offline: bool = False,
+        saved_only: bool = False,
         feed_notice: str = "",
         empty_demo: bool = False,
         selected_article: str = "",
-        action_message: str = "";
+        action_message: str = "",
+        debounce_handle: any = None;
     viewport = useWindowDimensions();
     styles = darkStyles if dark_mode else lightStyles;
     palette = DARK if dark_mode else LIGHT;
     source_articles: list[dict] = server_articles;
     feed_articles: list[dict] = source_articles if len(source_articles) > 0 else ARTICLES;
-    filtered: list[dict] = [a for a in feed_articles if category == "All" or a["category"] == category];
+    filtered: list[dict] = [a for a in feed_articles if (category == "All" or a["category"] == category) and (search_query == "" or search_query.lower() in (a["title"] as str).lower() or search_query.lower() in (a["summary"] as str).lower() or search_query.lower() in (a["source"] as str).lower()) and (not saved_only or a["id"] in saved_ids)];
     visible: list[dict] = [a for (i, a) in enumerate(filtered) if i < visible_count];
     saved_total = len(saved_ids);
     async can with entry {
         try {
-            server_articles = await fetch_live_articles();
-            feed_notice = "" if len(server_articles) > 0 else "Live feeds are quiet right now. Showing sample headlines.";
+            saved_raw = localStorage.getItem("lankapulse_saved_ids");
+            if saved_raw { saved_ids = JSON.parse(saved_raw) as list[str]; }
+            recent_raw = localStorage.getItem("lankapulse_recent_searches");
+            if recent_raw { recent_searches = JSON.parse(recent_raw) as list[str]; }
+            cached_raw = localStorage.getItem("lankapulse_feed_cache");
+            if cached_raw { server_articles = JSON.parse(cached_raw) as list[dict]; }
+        } except Exception {}
+        try {
+            live_articles = await fetch_live_articles();
+            if len(live_articles) > 0 {
+                server_articles = live_articles;
+                localStorage.setItem("lankapulse_feed_cache", JSON.stringify(server_articles));
+                offline = False;
+                feed_notice = "";
+            } else {
+                feed_notice = "Live feeds are quiet right now. Showing saved headlines.";
+            }
         } except Exception {
-            feed_notice = "News sources are unavailable. Showing sample headlines.";
+            offline = True;
+            feed_notice = "";
         }
         loading = False;
+    }
+    async def loadSearchResults(query: str) {
+        try {
+            live_results = await fetch_live_articles(query, 1);
+            if len(live_results) > 0 {
+                server_articles = live_results;
+                localStorage.setItem("lankapulse_feed_cache", JSON.stringify(server_articles));
+                offline = False;
+                feed_notice = "";
+            } elif query and not offline {
+                feed_notice = "No live stories match that search." if len(server_articles) == 0 else "";
+            }
+        } except Exception {
+            offline = True;
+            feed_notice = "" if len(server_articles) > 0 else "Couldn’t reach the news desk. Tap Refresh to try again.";
+        }
+    }
+    def scheduleSearch(value: str) {
+        search_input = value;
+        if debounce_handle { clearTimeout(debounce_handle); }
+        debounce_handle = setTimeout(lambda { search_query = value.strip(); visible_count = 6; loadSearchResults(value.strip()); }, 350);
+    }
+    def rememberSearch(value: str) {
+        clean_query = value.strip();
+        if clean_query and clean_query not in recent_searches {
+            recent_searches = [clean_query] + [q for q in recent_searches if q != clean_query];
+            recent_searches = recent_searches[:5];
+            localStorage.setItem("lankapulse_recent_searches", JSON.stringify(recent_searches));
+        }
+    }
+    def toggleSaved(article_id: str) {
+        saved_ids = [sid for sid in saved_ids if sid != article_id] if article_id in saved_ids else saved_ids + [article_id];
+        localStorage.setItem("lankapulse_saved_ids", JSON.stringify(saved_ids));
     }
     async def refreshArticles {
         refreshing = True;
         try {
-            server_articles = await fetch_live_articles();
-            feed_notice = "" if len(server_articles) > 0 else "Live feeds are quiet right now. Showing sample headlines.";
+            live_articles = await fetch_live_articles();
+            if len(live_articles) > 0 {
+                server_articles = live_articles;
+                localStorage.setItem("lankapulse_feed_cache", JSON.stringify(server_articles));
+                offline = False;
+                feed_notice = "";
+            } elif len(server_articles) == 0 {
+                feed_notice = "Live feeds are quiet right now. Showing sample headlines.";
+            }
         } except Exception {
-            feed_notice = "Could not refresh live news. Showing available headlines.";
+            offline = True;
+            feed_notice = "" if len(server_articles) > 0 else "News sources are unavailable. Showing sample headlines.";
         }
+        rememberSearch(search_query);
         visible_count = 6;
         empty_demo = False;
         refreshing = False;
     }
     chosen: dict = {};
-    for a in ARTICLES {
+    for a in feed_articles {
         if a["id"] == selected_article { chosen = a; }
     }
     return <ScrollView style={[styles.screen, {"height": viewport.height}]} contentContainerStyle={styles.screenContent}>
@@ -114,15 +178,30 @@ def:pub app -> JsxElement {
             <Text style={styles.subtitle}>A thoughtful read from home and around the world.</Text>
         </View>
 
-        <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>Today’s stories</Text>
-            <Pressable style={styles.refreshButton} onPress={refreshArticles}>
-                <Text style={styles.refreshText}>{"Refreshing" if refreshing else "Refresh"}</Text>
-            </Pressable>
+        <View style={styles.searchRow}>
+            <Text style={styles.searchIcon}>⌕</Text>
+            <TextInput style={styles.searchInput} value={search_input} placeholder="Search headlines, topics, sources" placeholderTextColor={palette["muted"]} onChangeText={lambda (value: str) { scheduleSearch(value); }} onSubmitEditing={lambda { rememberSearch(search_input); search_query = search_input.strip(); loadSearchResults(search_input.strip()); }} />
+            {if search_input != "" { <Pressable onPress={lambda { scheduleSearch(""); search_query = ""; }}><Text style={styles.searchIcon}>×</Text></Pressable> }}
         </View>
+        {if len(recent_searches) > 0 and search_input == "" {
+            <View style={styles.recentRow}>{[<Pressable key={recent} style={styles.recentChip} onPress={lambda { search_input = recent; search_query = recent; loadSearchResults(recent); }}><Text style={styles.recentText}>{recent}</Text></Pressable> for recent in recent_searches]}</View>
+        }}
+        <View style={styles.sectionRow}>
+            <Text style={styles.sectionTitle}>{"Saved stories" if saved_only else "Today’s stories"}</Text>
+            <View style={styles.previewRow}>
+                <Pressable style={styles.savedMode} onPress={lambda { saved_only = not saved_only; visible_count = 20; }}><Text style={styles.refreshText}>{"All stories" if saved_only else "Saved · " + str(saved_total)}</Text></Pressable>
+                <Pressable style={styles.refreshButton} onPress={refreshArticles}><Text style={styles.refreshText}>{"Refreshing" if refreshing else "Refresh"}</Text></Pressable>
+            </View>
+        </View>
+        {if offline {
+            <View style={styles.offlineBanner}><View style={styles.offlineDot}/><Text style={styles.offlineText}>You’re offline · Showing your last saved feed</Text></View>
+        }}
 
         {if feed_notice != "" {
-            <View style={styles.empty}><Text style={styles.emptyText}>{feed_notice}</Text></View>
+            <View style={styles.empty}>
+                <Text style={styles.emptyText}>{feed_notice}</Text>
+                <Pressable style={styles.detailClose} onPress={refreshArticles}><Text style={styles.detailCloseText}>Retry</Text></Pressable>
+            </View>
         }}
         {if loading {
             <View style={styles.skeletonCard}><View style={styles.skeletonImage}/><View style={styles.skeletonWide}/><View style={styles.skeletonBlock}/><View style={styles.skeletonShort}/></View>
@@ -145,7 +224,7 @@ def:pub app -> JsxElement {
                     <Pressable style={styles.detailAction} onPress={lambda { action_message = "Opening original publisher page"; window.open(chosen["url"], "_blank"); }}><Text style={styles.detailActionText}>Read full story</Text></Pressable>
                     <Pressable style={styles.detailActionSecondary} onPress={lambda { action_message = "Copy or share: " + (chosen["url"] as str); }}><Text style={styles.detailActionSecondaryText}>Share</Text></Pressable>
                 </View>
-                <Pressable style={styles.detailActionSecondary} onPress={lambda { saved_ids = saved_ids + [chosen["id"]] if chosen["id"] not in saved_ids else [sid for sid in saved_ids if sid != chosen["id"]]; }}><Text style={styles.detailActionSecondaryText}>{"Saved to your reading list" if chosen["id"] in saved_ids else "Save this story"}</Text></Pressable>
+                <Pressable style={styles.detailActionSecondary} onPress={lambda { toggleSaved(chosen["id"] as str); }}><Text style={styles.detailActionSecondaryText}>{"Saved to your reading list" if chosen["id"] in saved_ids else "Save this story"}</Text></Pressable>
                 {if action_message != "" { <Text style={styles.detailCloseText}>{action_message}</Text> }}
             </View>
         }}
@@ -153,23 +232,20 @@ def:pub app -> JsxElement {
             {if empty_demo or len(visible) == 0 {
                 <View style={styles.empty}>
                     <Text style={styles.brandMarkText}>♡</Text>
-                    <Text style={styles.emptyTitle}>No stories in this category yet</Text>
-                    <Text style={styles.emptyText}>Try another topic and find something lovely to read.</Text>
+                    <Text style={styles.emptyTitle}>{"No saved stories yet" if saved_only else ("No matches just yet" if search_query != "" else "No stories in this category yet")}</Text>
+                    <Text style={styles.emptyText}>{"Tap a bookmark to keep a story close by." if saved_only else ("Try a different search or topic." if search_query != "" else "Try another topic and find something lovely to read.")}</Text>
                     <Pressable style={styles.detailClose} onPress={lambda { category = "All"; empty_demo = False; }}>
                         <Text style={styles.detailCloseText}>Browse all stories</Text>
                     </Pressable>
                 </View>
                 skip;
             }}
-            {[<Pressable key={article["id"]} style={styles.feedCard} onPress={lambda { selected_article = article["id"]; action_message = ""; }}>
+            {[<Pressable key={article["id"]} style={styles.feedCard} onPress={lambda { selected_article = article["id"]; action_message = ""; }} onTouchEnd={lambda (event: any) { if event.nativeEvent.pageX - event.nativeEvent.locationX > 70 { toggleSaved(article["id"] as str); } }}>
                 <Image source={{"uri": article["image"]}} style={styles.thumbnail} resizeMode="cover" />
                 <View style={styles.feedCardBody}>
                     <View style={styles.feedHeader}>
                         <View style={styles.previewChip}><Text style={styles.previewChipText}>{article["topic"]}</Text></View>
-                        <Pressable style={styles.bookmark} onPress={lambda {
-                            if article["id"] in saved_ids { saved_ids = [sid for sid in saved_ids if sid != article["id"]]; }
-                            else { saved_ids = saved_ids + [article["id"]]; }
-                        }}>
+                        <Pressable style={styles.bookmark} onPress={lambda { toggleSaved(article["id"] as str); }}>
                             <Text style={styles.bookmarkText}>{"♥" if article["id"] in saved_ids else "♡"}</Text>
                         </Pressable>
                     </View>

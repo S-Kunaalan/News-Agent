@@ -114,6 +114,16 @@ def:pub buildStyles(C: dict) -> any {
         "detailActionSecondary": {"flex": 1, "alignItems": "center", "paddingVertical": 12, "paddingHorizontal": 12, "borderRadius": R["md"], "backgroundColor": C["surfaceWarm"], "borderWidth": 1, "borderColor": C["border"]},
         "detailActionText": {"fontSize": F["sm"], "fontWeight": "bold", "color": C["accentText"]},
         "detailActionSecondaryText": {"fontSize": F["sm"], "fontWeight": "bold", "color": C["accentDark"]},
-        "detailBack": {"paddingVertical": 8, "paddingHorizontal": 13, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"], "alignSelf": "flex-start"}
+        "detailBack": {"paddingVertical": 8, "paddingHorizontal": 13, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"], "alignSelf": "flex-start"},
+        "searchRow": {"flexDirection": "row", "alignItems": "center", "gap": 9, "paddingHorizontal": 14, "borderRadius": R["md"], "backgroundColor": C["surface"], "borderWidth": 1, "borderColor": C["border"]},
+        "searchInput": {"flex": 1, "paddingVertical": 12, "fontSize": F["md"], "color": C["text"]},
+        "searchIcon": {"fontSize": 17, "color": C["muted"]},
+        "recentRow": {"flexDirection": "row", "gap": 8, "flexWrap": "wrap"},
+        "recentChip": {"paddingVertical": 7, "paddingHorizontal": 11, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"]},
+        "recentText": {"fontSize": F["xs"], "color": C["accentDark"]},
+        "offlineBanner": {"flexDirection": "row", "alignItems": "center", "gap": 8, "paddingVertical": 10, "paddingHorizontal": 13, "borderRadius": R["md"], "backgroundColor": C["surfaceWarm"]},
+        "offlineDot": {"width": 8, "height": 8, "borderRadius": R["pill"], "backgroundColor": C["accent"]},
+        "offlineText": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["accentDark"]},
+        "savedMode": {"paddingVertical": 8, "paddingHorizontal": 12, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"]}
     });
 }
