@@ -1,10 +1,30 @@
 """LankaPulse home feed with mock stories and reader-friendly controls."""
 
 import from "@jac/mobui" { View, Text, Pressable, ScrollView, Image, useWindowDimensions }
+import from services.articles { get_articles, articles_rest }
 import from .theme { LIGHT, DARK, buildStyles }
 
 glob lightStyles = buildStyles(LIGHT);
 glob darkStyles = buildStyles(DARK);
+
+async def fetch_live_articles() -> list[dict] {
+    response = await fetch("/function/get_articles", {"method": "POST", "headers": {"Content-Type": "application/json"}, "body": JSON.stringify({"region": "", "category": "", "q": "", "page": 1, "page_size": 20})});
+    payload = await response.json();
+    data: dict = payload["data"] as dict;
+    result: dict = data["result"] as dict;
+    records: list[dict] = result["articles"] as list[dict];
+    normalized: list[dict] = [];
+    for article in records {
+        normalized = normalized + [{
+            "id": article["id"], "category": article["category"], "topic": (article["category"] as str).upper(),
+            "title": article["title"], "source": article["source"], "time": article["publishedAt"],
+            "date": article["publishedAt"], "summary": article["snippet"], "url": article["url"],
+            "image": article["imageUrl"], "region": article["region"]
+        }];
+    }
+    return normalized;
+}
+
 glob CATEGORIES: list[str] = ["All", "Local", "World", "Sports", "Business", "Tech", "Entertainment"];
 glob ARTICLES: list[dict] = [
     {"id":"a01", "category":"Local", "topic":"COMMUNITY", "title":"Colombo’s neighbourhood gardens bring new life to city streets", "source":"Daily Island", "time":"12 min ago", "date":"20 October 2026", "summary":"Residents and community groups are finding new ways to bring shade and shared green spaces to busy Colombo neighbourhoods. This short preview is original mock copy; follow the publisher for the full report.", "url":"https://example.com/daily-island/colombo-gardens", "image":"https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?w=900"},
@@ -33,17 +53,43 @@ def:pub app -> JsxElement {
     has dark_mode: bool = False,
         category: str = "All",
         saved_ids: list[str] = [],
+        server_articles: list[dict] = [],
         visible_count: int = 6,
         refreshing: bool = False,
+        loading: bool = True,
+        feed_notice: str = "",
         empty_demo: bool = False,
         selected_article: str = "",
         action_message: str = "";
     viewport = useWindowDimensions();
     styles = darkStyles if dark_mode else lightStyles;
     palette = DARK if dark_mode else LIGHT;
-    filtered: list[dict] = [a for a in ARTICLES if category == "All" or a["category"] == category];
+    source_articles: list[dict] = server_articles;
+    feed_articles: list[dict] = source_articles if len(source_articles) > 0 else ARTICLES;
+    filtered: list[dict] = [a for a in feed_articles if category == "All" or a["category"] == category];
     visible: list[dict] = [a for (i, a) in enumerate(filtered) if i < visible_count];
     saved_total = len(saved_ids);
+    async can with entry {
+        try {
+            server_articles = await fetch_live_articles();
+            feed_notice = "" if len(server_articles) > 0 else "Live feeds are quiet right now. Showing sample headlines.";
+        } except Exception {
+            feed_notice = "News sources are unavailable. Showing sample headlines.";
+        }
+        loading = False;
+    }
+    async def refreshArticles {
+        refreshing = True;
+        try {
+            server_articles = await fetch_live_articles();
+            feed_notice = "" if len(server_articles) > 0 else "Live feeds are quiet right now. Showing sample headlines.";
+        } except Exception {
+            feed_notice = "Could not refresh live news. Showing available headlines.";
+        }
+        visible_count = 6;
+        empty_demo = False;
+        refreshing = False;
+    }
     chosen: dict = {};
     for a in ARTICLES {
         if a["id"] == selected_article { chosen = a; }
@@ -70,16 +116,17 @@ def:pub app -> JsxElement {
 
         <View style={styles.sectionRow}>
             <Text style={styles.sectionTitle}>Today’s stories</Text>
-            <Pressable style={styles.refreshButton} onPress={lambda {
-                refreshing = True;
-                visible_count = 6;
-                empty_demo = False;
-                refreshing = False;
-            }}>
-                <Text style={styles.refreshText}>{"Refreshed" if refreshing else "Refresh"}</Text>
+            <Pressable style={styles.refreshButton} onPress={refreshArticles}>
+                <Text style={styles.refreshText}>{"Refreshing" if refreshing else "Refresh"}</Text>
             </Pressable>
         </View>
 
+        {if feed_notice != "" {
+            <View style={styles.empty}><Text style={styles.emptyText}>{feed_notice}</Text></View>
+        }}
+        {if loading {
+            <View style={styles.skeletonCard}><View style={styles.skeletonImage}/><View style={styles.skeletonWide}/><View style={styles.skeletonBlock}/><View style={styles.skeletonShort}/></View>
+        }}
         <ScrollView horizontal={True} showsHorizontalScrollIndicator={False} style={styles.categoryScroll} contentContainerStyle={styles.categoryRow}>
             {[<Pressable key={item} style={styles.categoryChipActive if category == item else styles.categoryChip} onPress={lambda { category = item; visible_count = 6; empty_demo = False; }}>
                 <Text style={styles.categoryChipTextActive if category == item else styles.categoryChipText}>{item}</Text>
@@ -96,7 +143,7 @@ def:pub app -> JsxElement {
                 <Text style={styles.detailSummary}>{chosen["summary"]}</Text>
                 <View style={styles.detailActionRow}>
                     <Pressable style={styles.detailAction} onPress={lambda { action_message = "Opening original publisher page"; window.open(chosen["url"], "_blank"); }}><Text style={styles.detailActionText}>Read full story</Text></Pressable>
-                    <Pressable style={styles.detailActionSecondary} onPress={lambda { action_message = "Copy or share: " + chosen["url"]; }}><Text style={styles.detailActionSecondaryText}>Share</Text></Pressable>
+                    <Pressable style={styles.detailActionSecondary} onPress={lambda { action_message = "Copy or share: " + (chosen["url"] as str); }}><Text style={styles.detailActionSecondaryText}>Share</Text></Pressable>
                 </View>
                 <Pressable style={styles.detailActionSecondary} onPress={lambda { saved_ids = saved_ids + [chosen["id"]] if chosen["id"] not in saved_ids else [sid for sid in saved_ids if sid != chosen["id"]]; }}><Text style={styles.detailActionSecondaryText}>{"Saved to your reading list" if chosen["id"] in saved_ids else "Save this story"}</Text></Pressable>
                 {if action_message != "" { <Text style={styles.detailCloseText}>{action_message}</Text> }}
@@ -131,7 +178,7 @@ def:pub app -> JsxElement {
                         <Text style={styles.source}>{article["source"]}</Text>
                         <Text style={styles.meta}>{article["time"]}</Text>
                     </View>
-                    <Text style={styles.sectionMeta}>{article["category"] + " · Tap to read summary"}</Text>
+                    <Text style={styles.sectionMeta}>{("Sri Lanka" if article["category"] == "Local" else "International") + " · Tap to read summary"}</Text>
                 </View>
             </Pressable> for article in visible]}
         </View>
