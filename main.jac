@@ -1,4 +1,4 @@
-"""LankaPulse home feed with mock stories and reader-friendly controls."""
+"""LankaPulse news reader: multilingual feed, onboarding and settings."""
 
 import from "@jac/mobui" { View, Text, Pressable, ScrollView, Image, TextInput, useWindowDimensions }
 import from services.articles { get_articles, articles_rest }
@@ -6,26 +6,8 @@ import from .theme { LIGHT, DARK, buildStyles }
 
 glob lightStyles = buildStyles(LIGHT);
 glob darkStyles = buildStyles(DARK);
-
-async def fetch_live_articles(query: str = "", page: int = 1) -> list[dict] {
-    response = await fetch("/function/get_articles", {"method": "POST", "headers": {"Content-Type": "application/json"}, "body": JSON.stringify({"region": "", "category": "", "q": query, "page": page, "page_size": 20})});
-    payload = await response.json();
-    data: dict = payload["data"] as dict;
-    result: dict = data["result"] as dict;
-    records: list[dict] = result["articles"] as list[dict];
-    normalized: list[dict] = [];
-    for article in records {
-        normalized = normalized + [{
-            "id": article["id"], "category": article["category"], "topic": (article["category"] as str).upper(),
-            "title": article["title"], "source": article["source"], "time": article["publishedAt"],
-            "date": article["publishedAt"], "summary": article["snippet"], "url": article["url"],
-            "image": article["imageUrl"], "region": article["region"]
-        }];
-    }
-    return normalized;
-}
-
 glob CATEGORIES: list[str] = ["All", "Local", "World", "Sports", "Business", "Tech", "Entertainment"];
+glob TOPICS: list[str] = ["Local", "World", "Sports", "Business", "Tech", "Entertainment"];
 glob ARTICLES: list[dict] = [
     {"id":"a01", "category":"Local", "topic":"COMMUNITY", "title":"Colombo’s neighbourhood gardens bring new life to city streets", "source":"Daily Island", "time":"12 min ago", "date":"20 October 2026", "summary":"Residents and community groups are finding new ways to bring shade and shared green spaces to busy Colombo neighbourhoods. This short preview is original mock copy; follow the publisher for the full report.", "url":"https://example.com/daily-island/colombo-gardens", "image":"https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?w=900"},
     {"id":"a02", "category":"World", "topic":"CLIMATE", "title":"Cities share fresh ideas for greener, cooler public spaces", "source":"World Desk", "time":"28 min ago", "image":"https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=900"},
@@ -49,8 +31,22 @@ glob ARTICLES: list[dict] = [
     {"id":"a20", "category":"World", "topic":"TRAVEL", "title":"A new walking route invites visitors to discover old town lanes", "source":"World Desk", "time":"6 hrs ago", "image":"https://images.unsplash.com/photo-1516483638261-f4dbaf036963?w=900"}
 ];
 
+glob COPY: dict = {
+    "English": {"home":"The day, in the know.", "subtitle":"A thoughtful read from home and around the world.", "stories":"Today’s stories", "saved":"Saved stories", "search":"Search headlines, topics, sources", "refresh":"Refresh", "onboarding":"A little closer to home", "next":"Next", "start":"Start reading", "topics":"Pick what you love", "language":"Language", "settings":"Settings", "theme":"Theme", "font":"Font size", "notifications":"Notifications", "done":"Done", "offline":"You’re offline · Showing your last saved feed"},
+    "සිංහල": {"home":"දවසේ පුවත්, ඔබට සමීපව.", "subtitle":"ශ්‍රී ලංකාවේ සහ ලොව පුරා පුවත්.", "stories":"අද පුවත්", "saved":"සුරැකි පුවත්", "search":"පුවත් සොයන්න", "refresh":"යාවත්කාලීන", "onboarding":"ඔබට සමීප පුවත්", "next":"ඊළඟ", "start":"කියවීම අරඹන්න", "topics":"ඔබ කැමති දේ තෝරන්න", "language":"භාෂාව", "settings":"සැකසුම්", "theme":"තේමාව", "font":"අකුරු ප්‍රමාණය", "notifications":"දැනුම්දීම්", "done":"අවසන්", "offline":"ඔබ නොබැඳිවයි · සුරැකි පුවත් පෙන්වයි"},
+    "தமிழ்": {"home":"உங்கள் நாளின் செய்திகள்.", "subtitle":"இலங்கையிலிருந்தும் உலகிலிருந்தும் செய்திகள்.", "stories":"இன்றைய செய்திகள்", "saved":"சேமித்த செய்திகள்", "search":"தலைப்புகளைத் தேடுங்கள்", "refresh":"புதுப்பி", "onboarding":"உங்கள் அருகிலுள்ள செய்திகள்", "next":"அடுத்து", "start":"வாசிக்கத் தொடங்கு", "topics":"உங்களுக்கு விருப்பமானவற்றைத் தேர்ந்தெடுக்கவும்", "language":"மொழி", "settings":"அமைப்புகள்", "theme":"தோற்றம்", "font":"எழுத்து அளவு", "notifications":"அறிவிப்புகள்", "done":"முடிந்தது", "offline":"இணைய இணைப்பு இல்லை · சேமித்த செய்திகள்"}
+};
+
 def:pub app -> JsxElement {
     has dark_mode: bool = False,
+        theme_mode: str = "system",
+        font_scale: int = 0,
+        notifications_on: bool = True,
+        language: str = "English",
+        onboarding_step: int = 0,
+        onboarding_done: bool = False,
+        preferred_topics: list[str] = [],
+        settings_open: bool = False,
         category: str = "All",
         search_input: str = "",
         search_query: str = "",
@@ -70,22 +66,42 @@ def:pub app -> JsxElement {
     viewport = useWindowDimensions();
     styles = darkStyles if dark_mode else lightStyles;
     palette = DARK if dark_mode else LIGHT;
+    tr: dict = COPY[language] as dict;
+    display_dark = False if theme_mode == "system" else dark_mode;
+    styles = darkStyles if display_dark else lightStyles;
+    palette = DARK if display_dark else LIGHT;
     source_articles: list[dict] = server_articles;
     feed_articles: list[dict] = source_articles if len(source_articles) > 0 else ARTICLES;
+    if len(preferred_topics) > 0 {
+        feed_articles = [a for a in feed_articles if a["category"] in preferred_topics];
+    }
     filtered: list[dict] = [a for a in feed_articles if (category == "All" or a["category"] == category) and (search_query == "" or search_query.lower() in (a["title"] as str).lower() or search_query.lower() in (a["summary"] as str).lower() or search_query.lower() in (a["source"] as str).lower()) and (not saved_only or a["id"] in saved_ids)];
     visible: list[dict] = [a for (i, a) in enumerate(filtered) if i < visible_count];
     saved_total = len(saved_ids);
     async can with entry {
         try {
+            onboarded_raw = localStorage.getItem("lankapulse_onboarded");
+            onboarding_done = onboarded_raw == "yes";
             saved_raw = localStorage.getItem("lankapulse_saved_ids");
             if saved_raw { saved_ids = JSON.parse(saved_raw) as list[str]; }
             recent_raw = localStorage.getItem("lankapulse_recent_searches");
             if recent_raw { recent_searches = JSON.parse(recent_raw) as list[str]; }
+            topics_raw = localStorage.getItem("lankapulse_topics");
+            if topics_raw { preferred_topics = JSON.parse(topics_raw) as list[str]; }
+            settings_raw = localStorage.getItem("lankapulse_settings");
+            if settings_raw {
+                settings: dict = JSON.parse(settings_raw) as dict;
+                language = settings["language"] as str if settings["language"] else "English";
+                theme_mode = settings["theme"] as str if settings["theme"] else "system";
+                dark_mode = theme_mode == "dark";
+                font_scale = settings["font_scale"] as int if settings["font_scale"] else 0;
+                notifications_on = settings["notifications"] as bool if settings["notifications"] is not None else True;
+            }
             cached_raw = localStorage.getItem("lankapulse_feed_cache");
             if cached_raw { server_articles = JSON.parse(cached_raw) as list[dict]; }
         } except Exception {}
         try {
-            live_articles = await fetch_live_articles();
+            live_articles: list[dict] = (await fetch_live_articles()) as list[dict];
             if len(live_articles) > 0 {
                 server_articles = live_articles;
                 localStorage.setItem("lankapulse_feed_cache", JSON.stringify(server_articles));
@@ -100,9 +116,17 @@ def:pub app -> JsxElement {
         }
         loading = False;
     }
+    def persistSettings {
+        localStorage.setItem("lankapulse_settings", JSON.stringify({"language": language, "theme": theme_mode, "font_scale": font_scale, "notifications": notifications_on}));
+    }
+    def completeOnboarding {
+        onboarding_done = True;
+        localStorage.setItem("lankapulse_onboarded", "yes");
+        localStorage.setItem("lankapulse_topics", JSON.stringify(preferred_topics));
+    }
     async def loadSearchResults(query: str) {
         try {
-            live_results = await fetch_live_articles(query, 1);
+            live_results: list[dict] = (await fetch_live_articles(query, 1)) as list[dict];
             if len(live_results) > 0 {
                 server_articles = live_results;
                 localStorage.setItem("lankapulse_feed_cache", JSON.stringify(server_articles));
@@ -136,7 +160,7 @@ def:pub app -> JsxElement {
     async def refreshArticles {
         refreshing = True;
         try {
-            live_articles = await fetch_live_articles();
+            live_articles: list[dict] = (await fetch_live_articles(search_query, 1)) as list[dict];
             if len(live_articles) > 0 {
                 server_articles = live_articles;
                 localStorage.setItem("lankapulse_feed_cache", JSON.stringify(server_articles));
@@ -154,123 +178,91 @@ def:pub app -> JsxElement {
         empty_demo = False;
         refreshing = False;
     }
+    def toggleTopic(topic: str) {
+        preferred_topics = [p for p in preferred_topics if p != topic] if topic in preferred_topics else preferred_topics + [topic];
+        localStorage.setItem("lankapulse_topics", JSON.stringify(preferred_topics));
+    }
+    def setTheme(mode: str) {
+        theme_mode = mode;
+        dark_mode = mode == "dark";
+        persistSettings();
+    }
     chosen: dict = {};
     for a in feed_articles {
         if a["id"] == selected_article { chosen = a; }
     }
+    if not onboarding_done {
+        slide_title = "A little closer to home" if onboarding_step == 0 else ("Pick what you love" if onboarding_step == 1 else "Your news, your way");
+        slide_body = "A warm welcome to stories from Sri Lanka and around the world." if onboarding_step == 0 else ("Choose a few topics and we’ll tune your daily reading list." if onboarding_step == 1 else "Choose your language and make LankaPulse feel like yours.");
+        slide_art = "☀" if onboarding_step == 0 else ("✿" if onboarding_step == 1 else "◉");
+        return <ScrollView style={[styles.screen, {"height": viewport.height}]} contentContainerStyle={styles.screenContent}>
+            <View style={styles.brandRow}><View style={styles.brandMark}><Text style={styles.brandMarkText}>L</Text></View><Text style={styles.brand}>LankaPulse</Text></View>
+            <View style={styles.onboardHero}><Text style={styles.onboardArt}>{slide_art}</Text><Text style={styles.headline}>{slide_title}</Text><Text style={styles.subtitle}>{slide_body}</Text></View>
+            {if onboarding_step == 1 {
+                <View style={styles.topicGrid}>{[<Pressable key={topic} style={styles.categoryChipActive if topic in preferred_topics else styles.categoryChip} onPress={lambda { toggleTopic(topic); }}><Text style={styles.categoryChipTextActive if topic in preferred_topics else styles.categoryChipText}>{topic}</Text></Pressable> for topic in TOPICS]}</View>
+            }}
+            {if onboarding_step == 2 {
+                <View style={styles.topicGrid}>{[<Pressable key={lang} style={styles.categoryChipActive if language == lang else styles.categoryChip} onPress={lambda { language = lang; persistSettings(); }}><Text style={styles.categoryChipTextActive if language == lang else styles.categoryChipText}>{lang}</Text></Pressable> for lang in ["English", "සිංහල", "தமிழ்"]]}</View>
+            }}
+            <View style={styles.onboardDots}><Text style={styles.sectionMeta}>{"●  ○  ○" if onboarding_step == 0 else ("○  ●  ○" if onboarding_step == 1 else "○  ○  ●")}</Text></View>
+            <Pressable style={styles.detailAction} onPress={lambda { if onboarding_step < 2 { onboarding_step = onboarding_step + 1; } else { completeOnboarding(); } }}><Text style={styles.detailActionText}>{tr["next"] if onboarding_step < 2 else tr["start"]}</Text></Pressable>
+        </ScrollView>;
+    }
     return <ScrollView style={[styles.screen, {"height": viewport.height}]} contentContainerStyle={styles.screenContent}>
         <View style={styles.topRow}>
-            <View style={styles.brandRow}>
-                <View style={styles.brandMark}><Text style={styles.brandMarkText}>L</Text></View>
-                <View>
-                    <Text style={styles.brand}>LankaPulse</Text>
-                    <Text style={styles.edition}>A little closer to home</Text>
-                </View>
-            </View>
-            <Pressable style={styles.themeToggle} onPress={lambda { dark_mode = not dark_mode; }}>
-                <Text style={styles.savedTopText}>{"Light" if dark_mode else "Dark"}</Text>
-            </Pressable>
-        </View>
-
-        <View style={styles.greeting}>
-            <Text style={styles.eyebrow}>TUESDAY, OCTOBER 20</Text>
-            <Text style={styles.headline}>The day, in the know.</Text>
-            <Text style={styles.subtitle}>A thoughtful read from home and around the world.</Text>
-        </View>
-
-        <View style={styles.searchRow}>
-            <Text style={styles.searchIcon}>⌕</Text>
-            <TextInput style={styles.searchInput} value={search_input} placeholder="Search headlines, topics, sources" placeholderTextColor={palette["muted"]} onChangeText={lambda (value: str) { scheduleSearch(value); }} onSubmitEditing={lambda { rememberSearch(search_input); search_query = search_input.strip(); loadSearchResults(search_input.strip()); }} />
-            {if search_input != "" { <Pressable onPress={lambda { scheduleSearch(""); search_query = ""; }}><Text style={styles.searchIcon}>×</Text></Pressable> }}
-        </View>
-        {if len(recent_searches) > 0 and search_input == "" {
-            <View style={styles.recentRow}>{[<Pressable key={recent} style={styles.recentChip} onPress={lambda { search_input = recent; search_query = recent; loadSearchResults(recent); }}><Text style={styles.recentText}>{recent}</Text></Pressable> for recent in recent_searches]}</View>
-        }}
-        <View style={styles.sectionRow}>
-            <Text style={styles.sectionTitle}>{"Saved stories" if saved_only else "Today’s stories"}</Text>
+            <View style={styles.brandRow}><View style={styles.brandMark}><Text style={styles.brandMarkText}>L</Text></View><View><Text style={styles.brand}>LankaPulse</Text><Text style={styles.edition}>A little closer to home</Text></View></View>
             <View style={styles.previewRow}>
-                <Pressable style={styles.savedMode} onPress={lambda { saved_only = not saved_only; visible_count = 20; }}><Text style={styles.refreshText}>{"All stories" if saved_only else "Saved · " + str(saved_total)}</Text></Pressable>
-                <Pressable style={styles.refreshButton} onPress={refreshArticles}><Text style={styles.refreshText}>{"Refreshing" if refreshing else "Refresh"}</Text></Pressable>
+                <Pressable style={styles.themeToggle} onPress={lambda { settings_open = not settings_open; }}><Text style={styles.savedTopText}>{tr["settings"]}</Text></Pressable>
+                <Pressable style={styles.themeToggle} onPress={lambda { language = "English" if language != "English" else "සිංහල"; persistSettings(); }}><Text style={styles.savedTopText}>{language}</Text></Pressable>
             </View>
         </View>
-        {if offline {
-            <View style={styles.offlineBanner}><View style={styles.offlineDot}/><Text style={styles.offlineText}>You’re offline · Showing your last saved feed</Text></View>
-        }}
-
-        {if feed_notice != "" {
-            <View style={styles.empty}>
-                <Text style={styles.emptyText}>{feed_notice}</Text>
-                <Pressable style={styles.detailClose} onPress={refreshArticles}><Text style={styles.detailCloseText}>Retry</Text></Pressable>
-            </View>
-        }}
-        {if loading {
-            <View style={styles.skeletonCard}><View style={styles.skeletonImage}/><View style={styles.skeletonWide}/><View style={styles.skeletonBlock}/><View style={styles.skeletonShort}/></View>
-        }}
-        <ScrollView horizontal={True} showsHorizontalScrollIndicator={False} style={styles.categoryScroll} contentContainerStyle={styles.categoryRow}>
-            {[<Pressable key={item} style={styles.categoryChipActive if category == item else styles.categoryChip} onPress={lambda { category = item; visible_count = 6; empty_demo = False; }}>
-                <Text style={styles.categoryChipTextActive if category == item else styles.categoryChipText}>{item}</Text>
-            </Pressable> for item in CATEGORIES]}
-        </ScrollView>
-
-        {if selected_article != "" {
+        {if settings_open {
             <View style={styles.detailPanel}>
-                <Pressable style={styles.detailBack} onPress={lambda { selected_article = ""; action_message = ""; }}><Text style={styles.detailCloseText}>Back to headlines</Text></Pressable>
-                <Image source={{"uri": chosen["image"]}} style={styles.detailImage} resizeMode="cover" />
-                <View style={styles.feedHeader}><View style={styles.previewChip}><Text style={styles.previewChipText}>{chosen["topic"]}</Text></View><Text style={styles.meta}>20 October 2026</Text></View>
-                <Text style={styles.detailHeadline}>{chosen["title"]}</Text>
-                <Text style={styles.source}>{"By " + chosen["source"]}</Text>
-                <Text style={styles.detailSummary}>{chosen["summary"]}</Text>
-                <View style={styles.detailActionRow}>
-                    <Pressable style={styles.detailAction} onPress={lambda { action_message = "Opening original publisher page"; window.open(chosen["url"], "_blank"); }}><Text style={styles.detailActionText}>Read full story</Text></Pressable>
-                    <Pressable style={styles.detailActionSecondary} onPress={lambda { action_message = "Copy or share: " + (chosen["url"] as str); }}><Text style={styles.detailActionSecondaryText}>Share</Text></Pressable>
-                </View>
-                <Pressable style={styles.detailActionSecondary} onPress={lambda { toggleSaved(chosen["id"] as str); }}><Text style={styles.detailActionSecondaryText}>{"Saved to your reading list" if chosen["id"] in saved_ids else "Save this story"}</Text></Pressable>
-                {if action_message != "" { <Text style={styles.detailCloseText}>{action_message}</Text> }}
+                <View style={styles.sectionRow}><Text style={styles.sectionTitle}>{tr["settings"]}</Text><Pressable style={styles.detailClose} onPress={lambda { settings_open = False; }}><Text style={styles.detailCloseText}>{tr["done"]}</Text></Pressable></View>
+                <Text style={styles.category}>{tr["theme"]}</Text>
+                <View style={styles.topicGrid}>{[<Pressable key={mode} style={styles.categoryChipActive if theme_mode == mode else styles.categoryChip} onPress={lambda { setTheme(mode); }}><Text style={styles.categoryChipTextActive if theme_mode == mode else styles.categoryChipText}>{mode}</Text></Pressable> for mode in ["light", "dark", "system"]]}</View>
+                <Text style={styles.category}>{(tr["font"] as str) + ": " + str(font_scale + 1)}</Text>
+                <View style={styles.previewRow}><Pressable style={styles.detailClose} onPress={lambda { font_scale = max(0, font_scale - 1); persistSettings(); }}><Text style={styles.detailCloseText}>A−</Text></Pressable><Pressable style={styles.detailClose} onPress={lambda { font_scale = min(2, font_scale + 1); persistSettings(); }}><Text style={styles.detailCloseText}>A+</Text></Pressable></View>
+                <Text style={styles.category}>{tr["language"]}</Text>
+                <View style={styles.topicGrid}>{[<Pressable key={lang} style={styles.categoryChipActive if language == lang else styles.categoryChip} onPress={lambda { language = lang; persistSettings(); }}><Text style={styles.categoryChipTextActive if language == lang else styles.categoryChipText}>{lang}</Text></Pressable> for lang in ["English", "සිංහල", "தமிழ்"]]}</View>
+                <Pressable style={styles.detailActionSecondary} onPress={lambda { notifications_on = not notifications_on; persistSettings(); }}><Text style={styles.detailActionSecondaryText}>{(tr["notifications"] as str) + ": " + ("On" if notifications_on else "Off")}</Text></Pressable>
             </View>
         }}
+        <View style={styles.greeting}><Text style={styles.eyebrow}>TUESDAY, OCTOBER 20</Text><Text style={styles.headline}>{tr["home"]}</Text><Text style={styles.subtitle}>{tr["subtitle"]}</Text></View>
+        <View style={styles.searchRow}><Text style={styles.searchIcon}>⌕</Text><TextInput style={styles.searchInput} value={search_input} placeholder={tr["search"]} placeholderTextColor={palette["muted"]} onChangeText={lambda (value: str) { scheduleSearch(value); }} onSubmitEditing={lambda { rememberSearch(search_input); search_query = search_input.strip(); loadSearchResults(search_input.strip()); }} />{if search_input != "" { <Pressable onPress={lambda { scheduleSearch(""); search_query = ""; }}><Text style={styles.searchIcon}>×</Text></Pressable> }}</View>
+        {if len(recent_searches) > 0 and search_input == "" { <View style={styles.recentRow}>{[<Pressable key={recent} style={styles.recentChip} onPress={lambda { search_input = recent; search_query = recent; loadSearchResults(recent); }}><Text style={styles.recentText}>{recent}</Text></Pressable> for recent in recent_searches]}</View> }}
+        <View style={styles.sectionRow}><Text style={styles.sectionTitle}>{tr["saved"] if saved_only else tr["stories"]}</Text><View style={styles.previewRow}><Pressable style={styles.savedMode} onPress={lambda { saved_only = not saved_only; visible_count = 20; }}><Text style={styles.refreshText}>{"All stories" if saved_only else "Saved · " + str(saved_total)}</Text></Pressable><Pressable style={styles.refreshButton} onPress={refreshArticles}><Text style={styles.refreshText}>{tr["refresh"] if not refreshing else "…"}</Text></Pressable></View></View>
+        {if offline { <View style={styles.offlineBanner}><View style={styles.offlineDot}/><Text style={styles.offlineText}>{tr["offline"]}</Text></View> }}
+        {if feed_notice != "" { <View style={styles.empty}><Text style={styles.emptyText}>{feed_notice}</Text><Pressable style={styles.detailClose} onPress={refreshArticles}><Text style={styles.detailCloseText}>Retry</Text></Pressable></View> }}
+        {if loading { <View style={styles.skeletonCard}><View style={styles.skeletonImage}/><View style={styles.skeletonWide}/><View style={styles.skeletonBlock}/><View style={styles.skeletonShort}/></View> }}
+        <ScrollView horizontal={True} showsHorizontalScrollIndicator={False} style={styles.categoryScroll} contentContainerStyle={styles.categoryRow}>{[<Pressable key={item} style={styles.categoryChipActive if category == item else styles.categoryChip} onPress={lambda { category = item; visible_count = 6; empty_demo = False; }}><Text style={styles.categoryChipTextActive if category == item else styles.categoryChipText}>{item}</Text></Pressable> for item in CATEGORIES]}</ScrollView>
+        {if selected_article != "" { <View style={styles.detailPanel}><Pressable style={styles.detailBack} onPress={lambda { selected_article = ""; action_message = ""; }}><Text style={styles.detailCloseText}>Back to headlines</Text></Pressable><Image source={{"uri": chosen["image"]}} style={styles.detailImage} resizeMode="cover"/><View style={styles.feedHeader}><View style={styles.previewChip}><Text style={styles.previewChipText}>{chosen["topic"]}</Text></View><Text style={styles.meta}>{chosen["date"] if chosen["date"] else "Latest"}</Text></View><Text style={styles.detailHeadline}>{chosen["title"]}</Text><Text style={styles.source}>{"By " + (chosen["source"] as str)}</Text><Text style={styles.detailSummary}>{chosen["summary"]}</Text><View style={styles.detailActionRow}><Pressable style={styles.detailAction} onPress={lambda { window.open(chosen["url"], "_blank"); }}><Text style={styles.detailActionText}>Read full story</Text></Pressable><Pressable style={styles.detailActionSecondary} onPress={lambda { action_message = "Share: " + (chosen["url"] as str); }}><Text style={styles.detailActionSecondaryText}>Share</Text></Pressable></View><Pressable style={styles.detailActionSecondary} onPress={lambda { toggleSaved(chosen["id"] as str); }}><Text style={styles.detailActionSecondaryText}>{"Saved" if chosen["id"] in saved_ids else "Save this story"}</Text></Pressable>{if action_message != "" { <Text style={styles.detailCloseText}>{action_message}</Text> }}</View> }}
         <View style={styles.storyList}>
-            {if empty_demo or len(visible) == 0 {
+            {if len(visible) == 0 {
                 <View style={styles.empty}>
                     <Text style={styles.brandMarkText}>♡</Text>
                     <Text style={styles.emptyTitle}>{"No saved stories yet" if saved_only else ("No matches just yet" if search_query != "" else "No stories in this category yet")}</Text>
                     <Text style={styles.emptyText}>{"Tap a bookmark to keep a story close by." if saved_only else ("Try a different search or topic." if search_query != "" else "Try another topic and find something lovely to read.")}</Text>
-                    <Pressable style={styles.detailClose} onPress={lambda { category = "All"; empty_demo = False; }}>
-                        <Text style={styles.detailCloseText}>Browse all stories</Text>
-                    </Pressable>
+                    <Pressable style={styles.detailClose} onPress={lambda { category = "All"; empty_demo = False; }}><Text style={styles.detailCloseText}>Browse all stories</Text></Pressable>
                 </View>
-                skip;
             }}
-            {[<Pressable key={article["id"]} style={styles.feedCard} onPress={lambda { selected_article = article["id"]; action_message = ""; }} onTouchEnd={lambda (event: any) { if event.nativeEvent.pageX - event.nativeEvent.locationX > 70 { toggleSaved(article["id"] as str); } }}>
-                <Image source={{"uri": article["image"]}} style={styles.thumbnail} resizeMode="cover" />
-                <View style={styles.feedCardBody}>
-                    <View style={styles.feedHeader}>
-                        <View style={styles.previewChip}><Text style={styles.previewChipText}>{article["topic"]}</Text></View>
-                        <Pressable style={styles.bookmark} onPress={lambda { toggleSaved(article["id"] as str); }}>
-                            <Text style={styles.bookmarkText}>{"♥" if article["id"] in saved_ids else "♡"}</Text>
-                        </Pressable>
-                    </View>
-                    <Text style={styles.feedHeadline}>{article["title"]}</Text>
-                    <View style={styles.storyBottom}>
-                        <Text style={styles.source}>{article["source"]}</Text>
-                        <Text style={styles.meta}>{article["time"]}</Text>
-                    </View>
-                    <Text style={styles.sectionMeta}>{("Sri Lanka" if article["category"] == "Local" else "International") + " · Tap to read summary"}</Text>
-                </View>
-            </Pressable> for article in visible]}
+            {if len(visible) > 0 {
+                for article in visible {
+                    <Pressable key={article["id"]} style={styles.feedCard} onPress={lambda { selected_article = article["id"]; action_message = ""; }}>
+                        <Image source={{"uri": article["image"]}} style={styles.thumbnail} resizeMode="cover" />
+                        <View style={styles.feedCardBody}>
+                            <View style={styles.feedHeader}>
+                                <View style={styles.previewChip}><Text style={styles.previewChipText}>{article["topic"]}</Text></View>
+                                <Pressable style={styles.bookmark} onPress={lambda { toggleSaved(article["id"] as str); }}><Text style={styles.bookmarkText}>{"♥" if article["id"] in saved_ids else "♡"}</Text></Pressable>
+                            </View>
+                            <Text style={styles.feedHeadline}>{article["title"]}</Text>
+                            <View style={styles.storyBottom}><Text style={styles.source}>{article["source"]}</Text><Text style={styles.meta}>{article["time"]}</Text></View>
+                            <Text style={styles.sectionMeta}>{("Sri Lanka" if article["category"] == "Local" else "International") + " · Tap to read summary"}</Text>
+                        </View>
+                    </Pressable>
+                }
+            }}
         </View>
-
-        {if visible_count < len(filtered) and not empty_demo {
-            <Pressable style={styles.loadMore} onPress={lambda { visible_count = visible_count + 6; }}>
-                <Text style={styles.loadMoreText}>Load more stories</Text>
-            </Pressable>
-        }}
-        {if visible_count >= len(filtered) and not empty_demo {
-            <Pressable style={styles.loadMore} onPress={lambda { empty_demo = True; }}>
-                <Text style={styles.loadMoreText}>You’re all caught up · Show empty state</Text>
-            </Pressable>
-        }}
-        <View style={styles.footer}>
-            <Text style={styles.footerText}>{str(saved_total) + " saved stories · Mock headlines for preview"}</Text>
-        </View>
+        <View style={styles.footer}><Text style={styles.footerText}>{str(saved_total) + " saved stories · LankaPulse"}</Text></View>
     </ScrollView>;
 }
