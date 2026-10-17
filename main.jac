@@ -1,188 +1,103 @@
-"""Mobile starter — one Jac source, running on iOS, Android and the web.
+"""Island Brief, a friendly daily reader for Sri Lankan and world news."""
 
-    jac start main.jac --dev                        # web preview (react-native-web)
-    jac setup react-native                          # one-time Expo scaffold
-    jac start main.jac --client react-native --dev  # native (Expo Go / simulator)
-
-The backend graph and the UI live in the same file. Notes persist on the graph,
-so they survive a reload — there is no database to configure.
-
-## The one rule that is different from a web app
-
-This project sets `client_kind = "mobui"` in jac.toml, which turns on the
-compiler's no-HTML guard. `<div>`, `<span>`, `<button>`, `className` and CSS are
-all rejected with **E1105**. Build the UI from `@jac/mobui` primitives instead:
-
-    <div>   -> <View>        <button> -> <Pressable>
-    <span>  -> <Text>        <input>  -> <TextInput>
-    <p>/<h1>-> <Text>        <ul>     -> <ScrollView>
-
-**All text must sit inside a `<Text>`** — a bare string in a `<View>` crashes on
-native. Styling is `style={...}` objects via StyleSheet, never className.
-
-⚠ Keep the UI in this file. The guard covers main.jac and `.native.jac` files
-but NOT plain modules, so a `<div>` in a helper module compiles clean here and
-then breaks on a real device.
-"""
-
-import datetime;
-import from uuid { uuid4 }
-import from "@jac/mobui" {
-    View,
-    Text,
-    Pressable,
-    TextInput,
-    ScrollView,
-    useWindowDimensions
-}
+import from "@jac/mobui" { View, Text, Pressable, ScrollView, useWindowDimensions }
 import from .theme { DARK, buildStyles }
 
-
-# ---------------------------------------------------------------------------
-# Backend — the graph is the database, walkers are the API
-# ---------------------------------------------------------------------------
-
-node Note {
-    has text: str,
-        done: bool = False,
-        # Stable id the UI can key rows on and address a single note with.
-        nid: str = str(uuid4()),
-        created_at: str = datetime.datetime.now().strftime("%H:%M");
-}
-
-
-"""Read every note on the shared graph."""
-walker:pub load_notes {
-    can go with Root entry {
-        visit [-->[?:Note]];
-    }
-
-    can collect with Note entry {
-        report here;
-    }
-}
-
-
-"""Add a note. Blank text is ignored rather than stored."""
-walker:pub add_note {
-    has text: str;
-
-    can make with Root entry {
-        clean = self.text.strip();
-        if clean {
-            here ++> Note(text=clean);
-        }
-        visit [-->[?:Note]];
-    }
-
-    can collect with Note entry {
-        report here;
-    }
-}
-
-
-"""Flip one note's done flag, then return the whole list."""
-walker:pub toggle_note {
-    has nid: str;
-
-    can go with Root entry {
-        visit [-->[?:Note]];
-    }
-
-    can collect with Note entry {
-        if here.nid == self.nid {
-            here.done = not here.done;
-        }
-        report here;
-    }
-}
-
-
-# ---------------------------------------------------------------------------
-# UI — @jac/mobui primitives only
-# ---------------------------------------------------------------------------
-
 glob styles = buildStyles(DARK);
-
-
-"""One note row — tap anywhere on it to toggle done."""
-def NoteRow(note: Note, onToggle: Callable[[str], None]) -> JsxElement {
-    return <Pressable style={styles.card} onPress={lambda { onToggle(note.nid); }}>
-        <View style={styles.row}>
-            <View style={styles.checkOn if note.done else styles.check}>
-                <Text style={styles.checkMark}>{"✓" if note.done else ""}</Text>
-            </View>
-            <Text style={styles.noteDone if note.done else styles.noteText}>
-                {note.text}
-            </Text>
-            <Text style={styles.subtitle}>{note.created_at}</Text>
-        </View>
-    </Pressable>;
-}
-
+glob STORIES: list[dict] = [
+    {"id": "s1", "region": "Sri Lanka", "category": "COMMUNITY", "title": "Colombo’s new green corridors bring shade back to busy streets", "summary": "Neighbourhood planting projects are transforming everyday walks, with residents helping care for young trees across the city.", "source": "Daily Island", "time": "18 min ago", "detail": "Community groups and city planners are working together to add trees and shaded walking routes in some of Colombo’s busiest neighbourhoods. Organisers say the locally led planting programme will connect parks, schools and public spaces while helping make daily journeys more comfortable."},
+    {"id": "s2", "region": "Sri Lanka", "category": "EDUCATION", "title": "Island schools explore hands-on science in new classroom programme", "summary": "Teachers are bringing practical experiments into lessons to help young learners discover science together.", "source": "Island Observer", "time": "42 min ago", "detail": "A new classroom initiative is giving students more opportunities to learn science by doing. Participating teachers are sharing activity-based lessons and simple experiments that make it easier to connect classroom topics with the world around them."},
+    {"id": "s3", "region": "Sri Lanka", "category": "TRAVEL", "title": "Southern rail journeys welcome more weekend visitors", "summary": "Local businesses along the route are preparing for a lively season of coastal day trips and slower travel.", "source": "The Morning Post", "time": "1 hr ago", "detail": "Small businesses in southern towns are getting ready to welcome visitors taking weekend rail trips. Cafes, guesthouses and community guides say travellers are increasingly keen to spend time in local markets and explore at an unhurried pace."},
+    {"id": "w1", "region": "World", "category": "CLIMATE", "title": "Cities share practical ideas for cooler, more walkable neighbourhoods", "summary": "Urban teams are comparing small-scale shade, water and street design projects that residents can feel day to day.", "source": "World Desk", "time": "25 min ago", "detail": "City representatives from several regions are sharing practical approaches to help people stay comfortable in warmer weather. The projects focus on shade, accessible public spaces and local participation, rather than large infrastructure changes alone."},
+    {"id": "w2", "region": "World", "category": "CULTURE", "title": "Community libraries find new ways to bring readers together", "summary": "From book swaps to shared reading clubs, local organisers are making room for stories and conversation.", "source": "Global Journal", "time": "56 min ago", "detail": "Independent libraries and community reading groups are introducing welcoming, low-cost activities to bring neighbours together. Organisers say book swaps and regular reading sessions are helping make shared spaces feel more connected."},
+    {"id": "w3", "region": "World", "category": "FOOD", "title": "Local food markets connect growers with a new generation of cooks", "summary": "Seasonal produce and simple cooking demonstrations are drawing curious visitors to neighbourhood markets.", "source": "The Daily Globe", "time": "1 hr ago", "detail": "Markets in several cities are pairing seasonal produce with informal cooking demonstrations. Growers say the gatherings give shoppers a chance to learn where ingredients come from and discover new ways to prepare familiar foods."}
+];
 
 def:pub app -> JsxElement {
-    has notes: list[Note] = [],
-        draft: str = "";
-
-    # `flex: 1` needs a parent with a real height. On native the root has one; on
-    # web the mount node collapses to content height, so the screen background
-    # stops where the content stops and the rest of the phone renders white.
-    # Giving the root an explicit viewport height is the fix (same as littlex).
+    has region: str = "Sri Lanka",
+        selected_id: str = "",
+        saved_ids: list[str] = [],
+        saved_only: bool = False;
     viewport = useWindowDimensions();
-
-    async can with entry {
-        result = root spawn load_notes();
-        notes = result.reports;
+    visible: list[dict] = [s for s in STORIES if ((s["region"] == region) and (not saved_only or (s["id"] in saved_ids)))];
+    selected: dict = {};
+    for story in STORIES {
+        if story["id"] == selected_id { selected = story; }
     }
-
-    async def addNote {
-        txt = draft.strip();
-        if not txt {
-            return;
-        }
-        # Clear the field first so the input feels instant, then persist.
-        draft = "";
-        result = root spawn add_note(text=txt);
-        notes = result.reports;
-    }
-
-    async def toggle(nid: str) {
-        result = root spawn toggle_note(nid=nid);
-        notes = result.reports;
-    }
-
-    return <ScrollView
-        style={[styles.screen, {height: viewport.height}]}
-        contentContainerStyle={styles.screenContent}
-    >
-        <View>
-            <Text style={styles.title}>Notes</Text>
-            <Text style={styles.subtitle}>
-                Stored on the graph — they survive a reload.
-            </Text>
-        </View>
-
-        <View style={styles.row}>
-            <TextInput
-                style={styles.input}
-                value={draft}
-                placeholder="Write a note"
-                placeholderTextColor={DARK["muted"]}
-                onChangeText={lambda (t: str) { draft = t; }}
-                onSubmitEditing={lambda { addNote(); }}
-            />
-            <Pressable style={styles.addButton} onPress={lambda { addNote(); }}>
-                <Text style={styles.addLabel}>Add</Text>
+    saved_count = len(saved_ids);
+    return <ScrollView style={[styles.screen, {"height": viewport.height}]} contentContainerStyle={styles.screenContent}>
+        <View style={styles.topRow}>
+            <View style={styles.brandRow}>
+                <View style={styles.brandMark}><Text style={styles.brandMarkText}>i</Text></View>
+                <View>
+                    <Text style={styles.brand}>Island Brief</Text>
+                    <Text style={styles.edition}>Your little window to the world</Text>
+                </View>
+            </View>
+            <Pressable style={styles.savedTopActive if saved_only else styles.savedTop} onPress={lambda { saved_only = not saved_only; selected_id = ""; }}>
+                <Text style={styles.savedTopTextActive if saved_only else styles.savedTopText}>{"Saved · " + str(saved_count) if saved_count > 0 else ("Saved stories" if saved_only else "My saves")}</Text>
             </Pressable>
         </View>
-
+        <View style={styles.greeting}>
+            <Text style={styles.eyebrow}>YOUR DAILY READ</Text>
+            <Text style={styles.headline}>A brighter little briefing.</Text>
+            <Text style={styles.subtitle}>Good stories from home and everywhere else.</Text>
+        </View>
+        <View style={styles.weatherCard}>
+            <View>
+                <Text style={styles.weatherTitle}>A fresh start, Colombo</Text>
+                <Text style={styles.weatherMeta}>Today’s edition · Tuesday, October 20</Text>
+            </View>
+            <Text style={styles.weatherIcon}>☀</Text>
+        </View>
+        <View style={styles.sectionRow}>
+            <Text style={styles.sectionTitle}>{"Today’s stories"}</Text>
+            <Text style={styles.sectionMeta}>{str(len(visible)) + " reads"}</Text>
+        </View>
+        <View style={styles.tabs}>
+            <Pressable style={styles.tabActive if region == "Sri Lanka" else styles.tab} onPress={lambda { region = "Sri Lanka"; selected_id = ""; saved_only = False; }}>
+                <Text style={styles.tabTextActive if region == "Sri Lanka" else styles.tabText}>Sri Lanka</Text>
+            </Pressable>
+            <Pressable style={styles.tabActive if region == "World" else styles.tab} onPress={lambda { region = "World"; selected_id = ""; saved_only = False; }}>
+                <Text style={styles.tabTextActive if region == "World" else styles.tabText}>Around the world</Text>
+            </Pressable>
+        </View>
         {(
             <View style={styles.empty}>
-                <Text style={styles.subtitle}>No notes yet.</Text>
+                <Text style={styles.emptyTitle}>{"Nothing saved just yet" if saved_only else "A quiet moment"}</Text>
+                <Text style={styles.emptyText}>{"Tap Save on any story and it will be waiting here for you." if saved_only else "There are no stories in this edition right now."}</Text>
             </View>
-        ) if not notes else <View style={styles.content}>
-            {[<NoteRow key={n.nid} note={n} onToggle={toggle}/> for n in notes]}
+        ) if len(visible) == 0 else <View style={styles.storyList}>
+            {[<View key={story["id"]} style={styles.storyCardSelected if selected_id == story["id"] else styles.storyCard}>
+                <Pressable onPress={lambda { selected_id = story["id"] if selected_id != story["id"] else ""; }}>
+                    <View style={styles.storyTop}>
+                        <Text style={styles.category}>{story["category"]}</Text>
+                        <Text style={styles.meta}>{story["time"]}</Text>
+                    </View>
+                    <Text style={styles.storyTitle}>{story["title"]}</Text>
+                    <Text style={styles.storySummary}>{story["summary"]}</Text>
+                </Pressable>
+                <View style={styles.storyBottom}>
+                    <Text style={styles.source}>{story["source"]}</Text>
+                    <Pressable style={styles.saveButtonActive if story["id"] in saved_ids else styles.saveButton} onPress={lambda {
+                        if story["id"] in saved_ids { saved_ids = [sid for sid in saved_ids if sid != story["id"]]; }
+                        else { saved_ids = saved_ids + [story["id"]]; }
+                    }}>
+                        <Text style={styles.saveLabelActive if story["id"] in saved_ids else styles.saveLabel}>{"Saved" if story["id"] in saved_ids else "Save story"}</Text>
+                    </Pressable>
+                </View>
+            </View> for story in visible]}
         </View>}
+        {(
+            <View style={styles.detail}>
+                <Text style={styles.eyebrow}>THE FULL STORY</Text>
+                <Text style={styles.detailTitle}>{selected["title"]}</Text>
+                <Text style={styles.detailBody}>{selected["detail"]}</Text>
+                <Pressable style={styles.detailClose} onPress={lambda { selected_id = ""; }}>
+                    <Text style={styles.detailCloseText}>Close story</Text>
+                </Pressable>
+            </View>
+        ) if selected_id != "" else <View/>}
+        <View style={styles.footer}><Text style={styles.footerText}>A thoughtful little read, wherever you are.</Text></View>
     </ScrollView>;
 }

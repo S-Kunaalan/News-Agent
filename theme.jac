@@ -1,116 +1,76 @@
-"""Design tokens and the stylesheet factory.
-
-React Native has no CSS, no Tailwind and no className -- styling is plain
-objects of camelCase properties built with StyleSheet.create. Keeping the tokens
-here and the sheet in a factory means the whole app re-skins from one place.
-
-There is deliberately no JSX in this file. E1105 (the no-HTML guard) is enforced
-on main.jac and .native.jac files but NOT on plain modules like this one, so a
-stray <div> here would compile clean and then break on a real device. Keep
-rendering in main.jac.
-"""
+"""Warm, approachable visual tokens for Island Brief."""
 
 import from "@jac/mobui" { StyleSheet }
 
-
 glob:pub DARK: dict = {
-         "bg": "#0b0d12",
-         "surface": "#151922",
-         "border": "#232937",
-         "text": "#e6e9ef",
-         "muted": "#8a93a6",
-         "accent": "#7c5cff",
-         "accentText": "#ffffff"
-     },
-     S: dict = {"xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24},
-     R: dict = {"sm": 8, "md": 12, "lg": 16, "pill": 999},
-     F: dict = {"sm": 13, "md": 15, "lg": 18, "xl": 28};
+    "bg": "#fff9f0",
+    "surface": "#ffffff",
+    "surfaceWarm": "#fff1d8",
+    "border": "#f0dfc5",
+    "text": "#31261d",
+    "muted": "#897a6b",
+    "accent": "#d98235",
+    "accentDark": "#a95420",
+    "accentText": "#ffffff",
+    "green": "#52785a"
+},
+S: dict = {"xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24},
+R: dict = {"sm": 10, "md": 16, "lg": 22, "pill": 999},
+F: dict = {"xs": 11, "sm": 13, "md": 15, "lg": 18, "xl": 27, "hero": 23};
 
-
-"""Build the stylesheet for a palette. Call once at module load, not per render.
-
-Returns `any`, not `dict`: StyleSheet.create hands back a sheet whose entries are
-read as attributes (`styles.card`). Annotating it `dict` turns every one of those
-reads into `error[E1030]: Type "dict" has no attribute "card"`.
-"""
 def:pub buildStyles(C: dict) -> any {
-    return StyleSheet.create(
-        {
-            "screen": {"flex": 1, "backgroundColor": C["bg"]},
-            "content": {"padding": S["xl"], "gap": S["lg"]},
-            # The top 44px is the status bar on a phone and the notch in the preview frame.
-            "screenContent": {
-                "paddingTop": 56,
-                "paddingBottom": S["xl"],
-                "paddingHorizontal": S["xl"],
-                "gap": S["lg"]
-            },
-            "title": {
-                "fontSize": F["xl"],
-                "fontWeight": "bold",
-                "color": C["text"]
-            },
-            "subtitle": {"fontSize": F["sm"], "color": C["muted"]},
-            # flexDirection defaults to "column" in RN -- rows must say so.
-            "row": {
-                "flexDirection": "row",
-                "alignItems": "center",
-                "gap": S["sm"]
-            },
-            "input": {
-                "flex": 1,
-                "padding": S["md"],
-                "borderRadius": R["md"],
-                "borderWidth": 1,
-                "borderColor": C["border"],
-                "backgroundColor": C["surface"],
-                "color": C["text"]
-            },
-            "addButton": {
-                "paddingVertical": S["md"],
-                "paddingHorizontal": S["lg"],
-                "borderRadius": R["md"],
-                "backgroundColor": C["accent"],
-                "alignItems": "center"
-            },
-            "addLabel": {"color": C["accentText"], "fontWeight": "bold"},
-            "card": {
-                "padding": S["lg"],
-                "borderRadius": R["md"],
-                "borderWidth": 1,
-                "borderColor": C["border"],
-                "backgroundColor": C["surface"]
-            },
-            "noteText": {"fontSize": F["md"], "color": C["text"], "flex": 1},
-            "noteDone": {
-                "fontSize": F["md"],
-                "color": C["muted"],
-                "flex": 1,
-                "textDecorationLine": "line-through"
-            },
-            "check": {
-                "width": 22,
-                "height": 22,
-                "borderRadius": R["pill"],
-                "borderWidth": 1,
-                "borderColor": C["accent"],
-                "alignItems": "center",
-                "justifyContent": "center"
-            },
-            "checkOn": {
-                "width": 22,
-                "height": 22,
-                "borderRadius": R["pill"],
-                "backgroundColor": C["accent"],
-                "alignItems": "center",
-                "justifyContent": "center"
-            },
-            "checkMark": {"color": C["accentText"], "fontSize": F["sm"]},
-            "empty": {
-                "padding": S["xl"],
-                "alignItems": "center",
-                "gap": S["sm"]
-            }
-        }
-    );
+    return StyleSheet.create({
+        "screen": {"flex": 1, "backgroundColor": C["bg"]},
+        "screenContent": {"paddingTop": 54, "paddingBottom": 36, "paddingHorizontal": 20, "gap": 20},
+        "topRow": {"flexDirection": "row", "alignItems": "center", "justifyContent": "space-between"},
+        "brandRow": {"flexDirection": "row", "alignItems": "center", "gap": 10},
+        "brandMark": {"width": 40, "height": 40, "borderRadius": 14, "backgroundColor": C["accent"], "alignItems": "center", "justifyContent": "center"},
+        "brandMarkText": {"fontSize": 20, "fontWeight": "bold", "color": C["accentText"]},
+        "brand": {"fontSize": F["lg"], "fontWeight": "bold", "color": C["text"]},
+        "edition": {"fontSize": F["xs"], "color": C["muted"], "marginTop": 2},
+        "savedTop": {"paddingVertical": 9, "paddingHorizontal": 13, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"]},
+        "savedTopActive": {"paddingVertical": 9, "paddingHorizontal": 13, "borderRadius": R["pill"], "backgroundColor": C["accent"]},
+        "savedTopText": {"fontSize": F["sm"], "fontWeight": "bold", "color": C["accentDark"]},
+        "savedTopTextActive": {"fontSize": F["sm"], "fontWeight": "bold", "color": C["accentText"]},
+        "greeting": {"gap": 5},
+        "eyebrow": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["accentDark"], "letterSpacing": 1},
+        "headline": {"fontSize": F["xl"], "fontWeight": "bold", "lineHeight": 34, "color": C["text"]},
+        "subtitle": {"fontSize": F["sm"], "lineHeight": 20, "color": C["muted"]},
+        "weatherCard": {"flexDirection": "row", "alignItems": "center", "justifyContent": "space-between", "padding": 16, "borderRadius": R["lg"], "backgroundColor": C["surfaceWarm"]},
+        "weatherTitle": {"fontSize": F["sm"], "fontWeight": "bold", "color": C["text"]},
+        "weatherMeta": {"fontSize": F["xs"], "color": C["muted"], "marginTop": 4},
+        "weatherIcon": {"fontSize": 25, "color": C["accentDark"]},
+        "sectionRow": {"flexDirection": "row", "alignItems": "center", "justifyContent": "space-between"},
+        "sectionTitle": {"fontSize": F["lg"], "fontWeight": "bold", "color": C["text"]},
+        "sectionMeta": {"fontSize": F["xs"], "color": C["muted"]},
+        "tabs": {"flexDirection": "row", "gap": 9},
+        "tab": {"paddingVertical": 10, "paddingHorizontal": 17, "borderRadius": R["pill"], "backgroundColor": C["surface"], "borderWidth": 1, "borderColor": C["border"]},
+        "tabActive": {"paddingVertical": 10, "paddingHorizontal": 17, "borderRadius": R["pill"], "backgroundColor": C["text"]},
+        "tabText": {"fontSize": F["sm"], "fontWeight": "bold", "color": C["muted"]},
+        "tabTextActive": {"fontSize": F["sm"], "fontWeight": "bold", "color": C["accentText"]},
+        "storyList": {"gap": 12},
+        "storyCard": {"padding": 16, "gap": 10, "borderRadius": R["lg"], "backgroundColor": C["surface"], "borderWidth": 1, "borderColor": C["border"]},
+        "storyCardSelected": {"padding": 16, "gap": 10, "borderRadius": R["lg"], "backgroundColor": C["surfaceWarm"], "borderWidth": 1, "borderColor": C["accent"]},
+        "storyTop": {"flexDirection": "row", "alignItems": "center", "justifyContent": "space-between"},
+        "category": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["accentDark"]},
+        "meta": {"fontSize": F["xs"], "color": C["muted"]},
+        "storyTitle": {"fontSize": F["md"], "lineHeight": 22, "fontWeight": "bold", "color": C["text"]},
+        "storySummary": {"fontSize": F["sm"], "lineHeight": 20, "color": C["muted"]},
+        "storyBottom": {"flexDirection": "row", "alignItems": "center", "justifyContent": "space-between"},
+        "source": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["muted"]},
+        "saveButton": {"paddingVertical": 7, "paddingHorizontal": 11, "borderRadius": R["pill"], "borderWidth": 1, "borderColor": C["border"]},
+        "saveButtonActive": {"paddingVertical": 7, "paddingHorizontal": 11, "borderRadius": R["pill"], "backgroundColor": C["accent"]},
+        "saveLabel": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["muted"]},
+        "saveLabelActive": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["accentText"]},
+        "detail": {"padding": 16, "gap": 8, "borderRadius": R["lg"], "backgroundColor": C["surface"], "borderWidth": 1, "borderColor": C["border"]},
+        "detailTitle": {"fontSize": F["lg"], "fontWeight": "bold", "lineHeight": 25, "color": C["text"]},
+        "detailBody": {"fontSize": F["sm"], "lineHeight": 22, "color": C["muted"]},
+        "detailClose": {"alignSelf": "flex-start", "paddingVertical": 8, "paddingHorizontal": 12, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"]},
+        "detailCloseText": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["accentDark"]},
+        "empty": {"alignItems": "center", "padding": 22, "gap": 8, "borderRadius": R["lg"], "backgroundColor": C["surface"], "borderWidth": 1, "borderColor": C["border"]},
+        "emptyTitle": {"fontSize": F["md"], "fontWeight": "bold", "color": C["text"]},
+        "emptyText": {"fontSize": F["sm"], "color": C["muted"], "textAlign": "center"},
+        "footer": {"alignItems": "center", "paddingTop": 4},
+        "footerText": {"fontSize": F["xs"], "color": C["muted"]}
+    });
 }
