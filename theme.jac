@@ -85,6 +85,25 @@ def:pub buildStyles(C: dict) -> any {
         "skeletonBlock": {"height": 12, "borderRadius": R["pill"], "backgroundColor": C["skeleton"]},
         "skeletonWide": {"height": 15, "width": "84%", "borderRadius": R["pill"], "backgroundColor": C["skeleton"]},
         "skeletonShort": {"height": 10, "width": "56%", "borderRadius": R["pill"], "backgroundColor": C["skeleton"]},
-        "themeToggle": {"paddingVertical": 9, "paddingHorizontal": 13, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"]}
+        "themeToggle": {"paddingVertical": 9, "paddingHorizontal": 13, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"]},
+        "categoryScroll": {"marginHorizontal": -20},
+        "categoryRow": {"flexDirection": "row", "gap": 8, "paddingHorizontal": 20},
+        "categoryChip": {"paddingVertical": 9, "paddingHorizontal": 14, "borderRadius": R["pill"], "backgroundColor": C["surface"], "borderWidth": 1, "borderColor": C["border"]},
+        "categoryChipActive": {"paddingVertical": 9, "paddingHorizontal": 14, "borderRadius": R["pill"], "backgroundColor": C["accent"]},
+        "categoryChipText": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["muted"]},
+        "categoryChipTextActive": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["accentText"]},
+        "feedCard": {"overflow": "hidden", "borderRadius": R["lg"], "backgroundColor": C["surface"], "borderWidth": 1, "borderColor": C["border"]},
+        "thumbnail": {"width": "100%", "height": 160, "backgroundColor": C["surfaceWarm"]},
+        "feedCardBody": {"padding": 15, "gap": 9},
+        "bookmark": {"minWidth": 38, "minHeight": 38, "alignItems": "center", "justifyContent": "center", "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"]},
+        "bookmarkText": {"fontSize": 19, "fontWeight": "bold", "color": C["accentDark"]},
+        "feedHeader": {"flexDirection": "row", "alignItems": "center", "justifyContent": "space-between"},
+        "feedHeadline": {"fontSize": F["md"], "lineHeight": 22, "fontWeight": "bold", "color": C["text"]},
+        "loadMore": {"alignItems": "center", "paddingVertical": 13, "paddingHorizontal": 16, "borderRadius": R["md"], "backgroundColor": C["surfaceWarm"]},
+        "loadMoreText": {"fontSize": F["sm"], "fontWeight": "bold", "color": C["accentDark"]},
+        "refreshButton": {"paddingVertical": 8, "paddingHorizontal": 12, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"]},
+        "refreshText": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["accentDark"]},
+        "skeletonCard": {"padding": 12, "gap": 10, "borderRadius": R["lg"], "backgroundColor": C["surface"], "borderWidth": 1, "borderColor": C["border"]},
+        "skeletonImage": {"height": 150, "borderRadius": R["md"], "backgroundColor": C["skeleton"]}
     });
 }
