@@ -129,6 +129,27 @@ def:pub buildStyles(C: dict) -> any {
         "savedMode": {"paddingVertical": 8, "paddingHorizontal": 12, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"]},
         "aiDisclosure": {"fontSize": F["xs"], "lineHeight": 17, "color": C["muted"]},
         "aiSummaryCard": {"padding": 14, "gap": 9, "borderRadius": R["md"], "backgroundColor": C["surfaceWarm"]},
-        "aiBullet": {"fontSize": F["sm"], "lineHeight": 20, "color": C["text"]}
+        "aiBullet": {"fontSize": F["sm"], "lineHeight": 20, "color": C["text"]},
+        "weatherCard": {"padding": 16, "gap": 12, "borderRadius": R["lg"], "backgroundColor": C["surfaceWarm"], "borderWidth": 1, "borderColor": C["border"]},
+        "weatherGreeting": {"gap": 3, "paddingBottom": 3},
+        "weatherTop": {"flexDirection": "row", "alignItems": "center", "justifyContent": "space-between"},
+        "weatherTextBlock": {"flex": 1, "gap": 4},
+        "weatherCondition": {"fontSize": F["xs"], "fontWeight": "bold", "letterSpacing": 1, "color": C["accentDark"]},
+        "weatherTemp": {"fontSize": 30, "fontWeight": "bold", "color": C["text"]},
+        "weatherCity": {"fontSize": F["sm"], "fontWeight": "bold", "color": C["text"]},
+        "weatherMeta": {"fontSize": F["xs"], "color": C["muted"]},
+        "weatherMascot": {"fontSize": 44, "textAlign": "center"},
+        "weatherForecastRow": {"flexDirection": "row", "justifyContent": "space-between", "paddingTop": 10, "borderTopWidth": 1, "borderTopColor": C["border"]},
+        "weatherForecastItem": {"alignItems": "center", "gap": 4},
+        "weatherForecastTime": {"fontSize": F["xs"], "color": C["muted"]},
+        "weatherForecastIcon": {"fontSize": 18, "color": C["accentDark"]},
+        "weatherForecastTemp": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["text"]},
+        "weatherInsight": {"paddingVertical": 9, "paddingHorizontal": 11, "borderRadius": R["md"], "backgroundColor": C["surface"]},
+        "weatherInsightText": {"fontSize": F["xs"], "lineHeight": 17, "color": C["muted"]},
+        "weatherPill": {"flexDirection": "row", "alignItems": "center", "justifyContent": "space-between", "paddingVertical": 10, "paddingHorizontal": 14, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"], "borderWidth": 1, "borderColor": C["border"]},
+        "weatherPillText": {"fontSize": F["sm"], "fontWeight": "bold", "color": C["text"]},
+        "weatherPillMeta": {"fontSize": F["xs"], "color": C["muted"]},
+        "weatherLocationButton": {"alignSelf": "flex-start", "minHeight": 40, "paddingVertical": 9, "paddingHorizontal": 12, "borderRadius": R["pill"], "backgroundColor": C["surface"]},
+        "weatherLocationText": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["accentDark"]}
     });
 }

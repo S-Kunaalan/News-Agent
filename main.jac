@@ -1,6 +1,6 @@
 """LankaPulse news reader: multilingual feed, onboarding and settings."""
 
-import from "@jac/mobui" { View, Text, Pressable, ScrollView, Image, TextInput, useWindowDimensions }
+import from "@jac/mobui" { View, Text, Pressable, ScrollView, Image, TextInput, useWindowDimensions, Animated, Easing }
 import from services.articles { get_articles, articles_rest, summarize_article }
 import from .theme { LIGHT, DARK, buildStyles }
 
@@ -64,6 +64,11 @@ def:pub app -> JsxElement {
         summary_error: str = "",
         summary_loading: bool = False,
         listening: bool = False,
+        weather_expanded: bool = True,
+        weather_city: str = "Colombo",
+        weather_notice: str = "",
+        weather_greeting: str = "Good morning",
+        weather_insight: str = "A bright day for a breezy 3-minute read on island gardens.",
         debounce_handle: any = None;
     viewport = useWindowDimensions();
     styles = darkStyles if dark_mode else lightStyles;
@@ -84,6 +89,8 @@ def:pub app -> JsxElement {
         try {
             onboarded_raw = localStorage.getItem("lankapulse_onboarded");
             onboarding_done = onboarded_raw == "yes";
+            hour_now = new(Date, ).getHours();
+            weather_greeting = "Good morning" if hour_now < 12 else ("Good afternoon" if hour_now < 18 else "Good evening");
             saved_raw = localStorage.getItem("lankapulse_saved_ids");
             if saved_raw { saved_ids = JSON.parse(saved_raw) as list[str]; }
             recent_raw = localStorage.getItem("lankapulse_recent_searches");
@@ -222,6 +229,21 @@ def:pub app -> JsxElement {
         dark_mode = mode == "dark";
         persistSettings();
     }
+    def requestWeatherLocation {
+        browser_window: any = window as any;
+        geo: any = browser_window.navigator.geolocation;
+        if geo {
+            geo.getCurrentPosition(lambda (position: any) {
+                weather_city = "Nearby location";
+                weather_notice = "Location permission granted. Local forecast lookup is not connected yet.";
+            }, lambda (error: any) {
+                weather_city = "Colombo";
+                weather_notice = "Location unavailable. Showing Colombo sample conditions.";
+            }, {"timeout": 8000, "maximumAge": 300000});
+        } else {
+            weather_notice = "Location isn’t available here. Showing Colombo conditions.";
+        }
+    }
     chosen: dict = {};
     for a in feed_articles {
         if a["id"] == selected_article { chosen = a; }
@@ -259,6 +281,34 @@ def:pub app -> JsxElement {
             </View>
         }}
         <View style={styles.greeting}><Text style={styles.eyebrow}>TUESDAY, OCTOBER 20</Text><Text style={styles.headline}>{tr["home"]}</Text><Text style={styles.subtitle}>{tr["subtitle"]}</Text></View>
+        <Pressable accessibilityRole="button" accessibilityLabel={"Weather details " + ("expanded" if weather_expanded else "collapsed") + ". Tap to " + ("collapse" if weather_expanded else "expand")} style={styles.weatherPill} onPress={lambda { weather_expanded = not weather_expanded; }}>
+            <Text style={styles.weatherPillText}>{"☀  " + weather_city + "  ·  29°"}</Text>
+            <Text style={styles.weatherPillMeta}>{"Sunny  ·  " + ("Hide" if weather_expanded else "Plan today")}</Text>
+        </Pressable>
+        {if weather_expanded {
+            <View style={styles.weatherCard}>
+                <View style={styles.weatherGreeting}><Text style={styles.weatherTitle}>{weather_greeting} from LankaPulse</Text><Text style={styles.weatherMeta}>A little sunshine for your day ahead</Text></View>
+                <View style={styles.weatherTop}>
+                    <View style={styles.weatherTextBlock}>
+                        <Text style={styles.weatherCondition}>SUNNY SPELLS</Text>
+                        <Text style={styles.weatherTemp}>29°</Text>
+                        <Text style={styles.weatherCity}>{weather_city + " · Sri Lanka"}</Text>
+                        <Text style={styles.weatherMeta}>H 31°  ·  L 25°  ·  Feels like 32°</Text>
+                    </View>
+                    <Text style={styles.weatherMascot}>☀️</Text>
+                </View>
+                <View style={styles.weatherForecastRow}>
+                    <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>Now</Text><Text style={styles.weatherForecastIcon}>☀</Text><Text style={styles.weatherForecastTemp}>29°</Text></View>
+                    <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>3 PM</Text><Text style={styles.weatherForecastIcon}>🌤</Text><Text style={styles.weatherForecastTemp}>30°</Text></View>
+                    <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>6 PM</Text><Text style={styles.weatherForecastIcon}>🌇</Text><Text style={styles.weatherForecastTemp}>28°</Text></View>
+                    <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>9 PM</Text><Text style={styles.weatherForecastIcon}>☾</Text><Text style={styles.weatherForecastTemp}>26°</Text></View>
+                </View>
+                <View style={styles.weatherInsight}><Text style={styles.weatherInsightText}>{weather_insight}</Text></View>
+                <Pressable style={styles.weatherLocationButton} onPress={requestWeatherLocation}><Text style={styles.weatherLocationText}>Use my location</Text></Pressable>
+                {weather_notice != "" and <Text style={styles.weatherMeta}>{weather_notice}</Text>}
+                <Text style={styles.weatherMeta}>Sample forecast for planning · Weather data not connected</Text>
+            </View>
+        }}
         <View style={styles.searchRow}><Text style={styles.searchIcon}>⌕</Text><TextInput style={styles.searchInput} value={search_input} placeholder={tr["search"]} placeholderTextColor={palette["muted"]} onChangeText={lambda (value: str) { scheduleSearch(value); }} onSubmitEditing={lambda { rememberSearch(search_input); search_query = search_input.strip(); loadSearchResults(search_input.strip()); }} />{if search_input != "" { <Pressable onPress={lambda { scheduleSearch(""); search_query = ""; }}><Text style={styles.searchIcon}>×</Text></Pressable> }}</View>
         {if len(recent_searches) > 0 and search_input == "" { <View style={styles.recentRow}>{[<Pressable key={recent} style={styles.recentChip} onPress={lambda { search_input = recent; search_query = recent; loadSearchResults(recent); }}><Text style={styles.recentText}>{recent}</Text></Pressable> for recent in recent_searches]}</View> }}
         <View style={styles.sectionRow}><Text style={styles.sectionTitle}>{tr["saved"] if saved_only else tr["stories"]}</Text><View style={styles.previewRow}><Pressable style={styles.savedMode} onPress={lambda { saved_only = not saved_only; visible_count = 20; }}><Text style={styles.refreshText}>{"All stories" if saved_only else "Saved · " + str(saved_total)}</Text></Pressable><Pressable style={styles.refreshButton} onPress={refreshArticles}><Text style={styles.refreshText}>{tr["refresh"] if not refreshing else "…"}</Text></Pressable></View></View>
