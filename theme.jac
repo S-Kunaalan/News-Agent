@@ -104,6 +104,16 @@ def:pub buildStyles(C: dict) -> any {
         "refreshButton": {"paddingVertical": 8, "paddingHorizontal": 12, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"]},
         "refreshText": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["accentDark"]},
         "skeletonCard": {"padding": 12, "gap": 10, "borderRadius": R["lg"], "backgroundColor": C["surface"], "borderWidth": 1, "borderColor": C["border"]},
-        "skeletonImage": {"height": 150, "borderRadius": R["md"], "backgroundColor": C["skeleton"]}
+        "skeletonImage": {"height": 150, "borderRadius": R["md"], "backgroundColor": C["skeleton"]},
+        "detailPanel": {"padding": 16, "gap": 14, "borderRadius": R["lg"], "backgroundColor": C["surface"], "borderWidth": 1, "borderColor": C["border"], "marginTop": 6},
+        "detailImage": {"width": "100%", "height": 220, "borderRadius": R["md"], "backgroundColor": C["surfaceWarm"]},
+        "detailHeadline": {"fontSize": F["xl"], "lineHeight": 33, "fontWeight": "bold", "color": C["text"]},
+        "detailSummary": {"fontSize": F["md"], "lineHeight": 24, "color": C["muted"]},
+        "detailActionRow": {"flexDirection": "row", "gap": 10},
+        "detailAction": {"flex": 1, "alignItems": "center", "paddingVertical": 13, "paddingHorizontal": 12, "borderRadius": R["md"], "backgroundColor": C["accent"]},
+        "detailActionSecondary": {"flex": 1, "alignItems": "center", "paddingVertical": 12, "paddingHorizontal": 12, "borderRadius": R["md"], "backgroundColor": C["surfaceWarm"], "borderWidth": 1, "borderColor": C["border"]},
+        "detailActionText": {"fontSize": F["sm"], "fontWeight": "bold", "color": C["accentText"]},
+        "detailActionSecondaryText": {"fontSize": F["sm"], "fontWeight": "bold", "color": C["accentDark"]},
+        "detailBack": {"paddingVertical": 8, "paddingHorizontal": 13, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"], "alignSelf": "flex-start"}
     });
 }

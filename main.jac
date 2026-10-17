@@ -7,7 +7,7 @@ glob lightStyles = buildStyles(LIGHT);
 glob darkStyles = buildStyles(DARK);
 glob CATEGORIES: list[str] = ["All", "Local", "World", "Sports", "Business", "Tech", "Entertainment"];
 glob ARTICLES: list[dict] = [
-    {"id":"a01", "category":"Local", "topic":"COMMUNITY", "title":"Colombo’s neighbourhood gardens bring new life to city streets", "source":"Daily Island", "time":"12 min ago", "image":"https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?w=900"},
+    {"id":"a01", "category":"Local", "topic":"COMMUNITY", "title":"Colombo’s neighbourhood gardens bring new life to city streets", "source":"Daily Island", "time":"12 min ago", "date":"20 October 2026", "summary":"Residents and community groups are finding new ways to bring shade and shared green spaces to busy Colombo neighbourhoods. This short preview is original mock copy; follow the publisher for the full report.", "url":"https://example.com/daily-island/colombo-gardens", "image":"https://images.unsplash.com/photo-1470252649378-9c29740c9fa8?w=900"},
     {"id":"a02", "category":"World", "topic":"CLIMATE", "title":"Cities share fresh ideas for greener, cooler public spaces", "source":"World Desk", "time":"28 min ago", "image":"https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=900"},
     {"id":"a03", "category":"Sports", "topic":"CRICKET", "title":"Young Sri Lankan squad looks ahead to a big season", "source":"Island Sports", "time":"35 min ago", "image":"https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=900"},
     {"id":"a04", "category":"Business", "topic":"SMALL BUSINESS", "title":"Local makers find new customers at weekend markets", "source":"The Morning", "time":"48 min ago", "image":"https://images.unsplash.com/photo-1488459716781-31db52582fe9?w=900"},
@@ -35,13 +35,19 @@ def:pub app -> JsxElement {
         saved_ids: list[str] = [],
         visible_count: int = 6,
         refreshing: bool = False,
-        empty_demo: bool = False;
+        empty_demo: bool = False,
+        selected_article: str = "",
+        action_message: str = "";
     viewport = useWindowDimensions();
     styles = darkStyles if dark_mode else lightStyles;
     palette = DARK if dark_mode else LIGHT;
     filtered: list[dict] = [a for a in ARTICLES if category == "All" or a["category"] == category];
     visible: list[dict] = [a for (i, a) in enumerate(filtered) if i < visible_count];
     saved_total = len(saved_ids);
+    chosen: dict = {};
+    for a in ARTICLES {
+        if a["id"] == selected_article { chosen = a; }
+    }
     return <ScrollView style={[styles.screen, {"height": viewport.height}]} contentContainerStyle={styles.screenContent}>
         <View style={styles.topRow}>
             <View style={styles.brandRow}>
@@ -80,6 +86,22 @@ def:pub app -> JsxElement {
             </Pressable> for item in CATEGORIES]}
         </ScrollView>
 
+        {if selected_article != "" {
+            <View style={styles.detailPanel}>
+                <Pressable style={styles.detailBack} onPress={lambda { selected_article = ""; action_message = ""; }}><Text style={styles.detailCloseText}>Back to headlines</Text></Pressable>
+                <Image source={{"uri": chosen["image"]}} style={styles.detailImage} resizeMode="cover" />
+                <View style={styles.feedHeader}><View style={styles.previewChip}><Text style={styles.previewChipText}>{chosen["topic"]}</Text></View><Text style={styles.meta}>20 October 2026</Text></View>
+                <Text style={styles.detailHeadline}>{chosen["title"]}</Text>
+                <Text style={styles.source}>{"By " + chosen["source"]}</Text>
+                <Text style={styles.detailSummary}>{chosen["summary"]}</Text>
+                <View style={styles.detailActionRow}>
+                    <Pressable style={styles.detailAction} onPress={lambda { action_message = "Opening original publisher page"; window.open(chosen["url"], "_blank"); }}><Text style={styles.detailActionText}>Read full story</Text></Pressable>
+                    <Pressable style={styles.detailActionSecondary} onPress={lambda { action_message = "Copy or share: " + chosen["url"]; }}><Text style={styles.detailActionSecondaryText}>Share</Text></Pressable>
+                </View>
+                <Pressable style={styles.detailActionSecondary} onPress={lambda { saved_ids = saved_ids + [chosen["id"]] if chosen["id"] not in saved_ids else [sid for sid in saved_ids if sid != chosen["id"]]; }}><Text style={styles.detailActionSecondaryText}>{"Saved to your reading list" if chosen["id"] in saved_ids else "Save this story"}</Text></Pressable>
+                {if action_message != "" { <Text style={styles.detailCloseText}>{action_message}</Text> }}
+            </View>
+        }}
         <View style={styles.storyList}>
             {if empty_demo or len(visible) == 0 {
                 <View style={styles.empty}>
@@ -92,7 +114,7 @@ def:pub app -> JsxElement {
                 </View>
                 skip;
             }}
-            {[<View key={article["id"]} style={styles.feedCard}>
+            {[<Pressable key={article["id"]} style={styles.feedCard} onPress={lambda { selected_article = article["id"]; action_message = ""; }}>
                 <Image source={{"uri": article["image"]}} style={styles.thumbnail} resizeMode="cover" />
                 <View style={styles.feedCardBody}>
                     <View style={styles.feedHeader}>
@@ -109,9 +131,9 @@ def:pub app -> JsxElement {
                         <Text style={styles.source}>{article["source"]}</Text>
                         <Text style={styles.meta}>{article["time"]}</Text>
                     </View>
-                    <Text style={styles.sectionMeta}>{article["category"] + " · Source story link coming soon"}</Text>
+                    <Text style={styles.sectionMeta}>{article["category"] + " · Tap to read summary"}</Text>
                 </View>
-            </View> for article in visible]}
+            </Pressable> for article in visible]}
         </View>
 
         {if visible_count < len(filtered) and not empty_demo {
