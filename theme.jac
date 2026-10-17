@@ -1,21 +1,21 @@
-"""Warm, approachable visual tokens for Island Brief."""
+"""LankaPulse-friendly light and dark design tokens and reusable styles."""
 
 import from "@jac/mobui" { StyleSheet }
 
-glob:pub DARK: dict = {
-    "bg": "#fff9f0",
-    "surface": "#ffffff",
-    "surfaceWarm": "#fff1d8",
-    "border": "#f0dfc5",
-    "text": "#31261d",
-    "muted": "#897a6b",
-    "accent": "#d98235",
-    "accentDark": "#a95420",
-    "accentText": "#ffffff",
-    "green": "#52785a"
+glob:pub LIGHT: dict = {
+    "bg": "#FFF9F0", "surface": "#FFFFFF", "surfaceWarm": "#FFF0D9",
+    "border": "#EEDFCB", "text": "#30251E", "muted": "#847568",
+    "accent": "#D98235", "accentDark": "#A95420", "accentText": "#FFFFFF",
+    "green": "#52785A", "skeleton": "#F0E7DB"
 },
-S: dict = {"xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24},
-R: dict = {"sm": 10, "md": 16, "lg": 22, "pill": 999},
+DARK: dict = {
+    "bg": "#171A17", "surface": "#222721", "surfaceWarm": "#302A20",
+    "border": "#3B4038", "text": "#F5F0E8", "muted": "#B2A99B",
+    "accent": "#E39A51", "accentDark": "#F1B36C", "accentText": "#211910",
+    "green": "#A6C69B", "skeleton": "#343931"
+},
+S: dict = {"xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24, "xxl": 32},
+R: dict = {"sm": 12, "md": 16, "lg": 22, "pill": 999},
 F: dict = {"xs": 11, "sm": 13, "md": 15, "lg": 18, "xl": 27, "hero": 23};
 
 def:pub buildStyles(C: dict) -> any {
@@ -71,6 +71,20 @@ def:pub buildStyles(C: dict) -> any {
         "emptyTitle": {"fontSize": F["md"], "fontWeight": "bold", "color": C["text"]},
         "emptyText": {"fontSize": F["sm"], "color": C["muted"], "textAlign": "center"},
         "footer": {"alignItems": "center", "paddingTop": 4},
-        "footerText": {"fontSize": F["xs"], "color": C["muted"]}
+        "footerText": {"fontSize": F["xs"], "color": C["muted"]},
+        "previewSection": {"gap": 10},
+        "previewLabel": {"fontSize": F["xs"], "fontWeight": "bold", "letterSpacing": 1, "color": C["muted"]},
+        "previewRow": {"flexDirection": "row", "alignItems": "center", "gap": 10},
+        "previewButton": {"paddingVertical": 11, "paddingHorizontal": 17, "borderRadius": R["md"], "backgroundColor": C["accent"]},
+        "previewButtonText": {"fontSize": F["sm"], "fontWeight": "bold", "color": C["accentText"]},
+        "previewOutline": {"paddingVertical": 10, "paddingHorizontal": 16, "borderRadius": R["md"], "borderWidth": 1, "borderColor": C["border"], "backgroundColor": C["surface"]},
+        "previewOutlineText": {"fontSize": F["sm"], "fontWeight": "bold", "color": C["text"]},
+        "previewChip": {"paddingVertical": 7, "paddingHorizontal": 12, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"]},
+        "previewChipText": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["accentDark"]},
+        "previewCard": {"padding": 16, "gap": 9, "borderRadius": R["lg"], "backgroundColor": C["surface"], "borderWidth": 1, "borderColor": C["border"]},
+        "skeletonBlock": {"height": 12, "borderRadius": R["pill"], "backgroundColor": C["skeleton"]},
+        "skeletonWide": {"height": 15, "width": "84%", "borderRadius": R["pill"], "backgroundColor": C["skeleton"]},
+        "skeletonShort": {"height": 10, "width": "56%", "borderRadius": R["pill"], "backgroundColor": C["skeleton"]},
+        "themeToggle": {"paddingVertical": 9, "paddingHorizontal": 13, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"]}
     });
 }
