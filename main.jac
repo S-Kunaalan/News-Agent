@@ -93,6 +93,20 @@ def:pub app -> JsxElement {
     filtered: list[dict] = [a for a in feed_articles if (category == "All" or a["category"] == category) and (search_query == "" or search_query.lower() in (a["title"] as str).lower() or search_query.lower() in (a["summary"] as str).lower() or search_query.lower() in (a["source"] as str).lower()) and (not saved_only or a["id"] in saved_ids)];
     visible: list[dict] = [a for (i, a) in enumerate(filtered) if i < visible_count];
     saved_total = len(saved_ids);
+    def mapArticles(raw_articles: list[dict]) -> list[dict] {
+        mapped: list[dict] = [];
+        for article in raw_articles {
+            title = article["title"] as str;
+            snippet = article["snippet"] as str if article["snippet"] else "";
+            category = article["category"] as str;
+            source = article["source"] as str;
+            published = article["publishedAt"] as str;
+            mapped = mapped + [{"id":article["id"], "category":category, "topic":category.upper(), "title":title,
+                "source":source, "time":"Latest", "date":published, "summary":snippet,
+                "url":article["url"], "image":article["imageUrl"] as str if article["imageUrl"] else ""}];
+        }
+        return mapped;
+    }
     async can with entry {
         try {
             onboarded_raw = localStorage.getItem("lankapulse_onboarded");
@@ -117,7 +131,8 @@ def:pub app -> JsxElement {
             if cached_raw { server_articles = JSON.parse(cached_raw) as list[dict]; }
         } except Exception {}
         try {
-            live_articles: list[dict] = (await fetch_live_articles()) as list[dict];
+            article_payload: dict = await get_articles();
+            live_articles: list[dict] = mapArticles(article_payload["articles"] as list[dict]);
             offline = False;
             if len(live_articles) > 0 {
                 server_articles = live_articles;
@@ -142,7 +157,8 @@ def:pub app -> JsxElement {
     }
     async def loadSearchResults(query: str) {
         try {
-            live_results: list[dict] = (await fetch_live_articles(query, 1)) as list[dict];
+            result_payload: dict = await get_articles(q=query, page_size=100);
+            live_results: list[dict] = mapArticles(result_payload["articles"] as list[dict]);
             offline = False;
             if len(live_results) > 0 {
                 server_articles = live_results;
@@ -210,7 +226,8 @@ def:pub app -> JsxElement {
     async def refreshArticles {
         refreshing = True;
         try {
-            live_articles: list[dict] = (await fetch_live_articles(search_query, 1)) as list[dict];
+            result_payload: dict = await get_articles(q=search_query, page_size=100);
+            live_articles: list[dict] = mapArticles(result_payload["articles"] as list[dict]);
             offline = False;
             if len(live_articles) > 0 {
                 server_articles = live_articles;
