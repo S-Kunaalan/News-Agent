@@ -69,6 +69,14 @@ def:pub app -> JsxElement {
         weather_notice: str = "",
         weather_greeting: str = "Good morning",
         weather_insight: str = "A bright day for a breezy 3-minute read on island gardens.",
+        weather_temp: int = 29,
+        weather_high: int = 31,
+        weather_low: int = 25,
+        weather_condition: str = "Clear",
+        weather_icon: str = "☀️",
+        weather_tint: str = "#FFF0D7",
+        weather_loading: bool = False,
+        weather_forecast: list[dict] = [{"time":"Now", "icon":"☀", "temp":"29°"}, {"time":"3 PM", "icon":"🌤", "temp":"30°"}, {"time":"6 PM", "icon":"🌇", "temp":"28°"}, {"time":"9 PM", "icon":"☾", "temp":"26°"}],
         debounce_handle: any = None;
     viewport = useWindowDimensions();
     styles = darkStyles if dark_mode else lightStyles;
@@ -229,20 +237,98 @@ def:pub app -> JsxElement {
         dark_mode = mode == "dark";
         persistSettings();
     }
+    def weatherDescription(code: int) -> str {
+        if code == 0 { return "Clear"; }
+        if code <= 2 { return "Partly cloudy"; }
+        if code == 3 { return "Cloudy"; }
+        if code <= 48 { return "Misty"; }
+        if code <= 57 { return "Drizzle"; }
+        if code <= 67 { return "Rain"; }
+        if code <= 77 { return "Snow"; }
+        if code <= 82 { return "Showers"; }
+        if code <= 86 { return "Snow showers"; }
+        if code <= 99 { return "Thunderstorm"; }
+        return "Changeable";
+    }
+    def weatherEmoji(code: int) -> str {
+        if code == 0 { return "☀️"; }
+        if code <= 2 { return "🌤️"; }
+        if code <= 3 { return "☁️"; }
+        if code <= 48 { return "🌫️"; }
+        if code <= 67 or code <= 82 { return "🌧️"; }
+        if code <= 86 { return "❄️"; }
+        return "⚡";
+    }
+    def weatherColor(code: int) -> str {
+        if code == 0 { return "#FFF0D7"; }
+        if code <= 2 { return "#E4F3FF"; }
+        if code <= 3 { return "#E8EEF7"; }
+        if code <= 48 { return "#E8EAF4"; }
+        if code <= 67 or code <= 82 { return "#E7E7FA"; }
+        if code <= 86 { return "#E5F4FB"; }
+        return "#F2E5F3";
+    }
+    async def loadWeather(latitude: float, longitude: float) {
+        weather_loading = True;
+        weather_notice = "Finding local conditions…";
+        try {
+            weather_response = await fetch("https://api.open-meteo.com/v1/forecast?latitude=" + str(latitude) + "&longitude=" + str(longitude) + "&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=1&timezone=auto");
+            if not weather_response.ok { raise Exception("Weather request failed"); }
+            weather_data: dict = await weather_response.json() as dict;
+            current_data: dict = weather_data["current"] as dict;
+            daily_data: dict = weather_data["daily"] as dict;
+            hourly_data: dict = weather_data["hourly"] as dict;
+            code = current_data["weather_code"] as int;
+            weather_temp = round(current_data["temperature_2m"] as float);
+            weather_high = round((daily_data["temperature_2m_max"] as list)[0] as float);
+            weather_low = round((daily_data["temperature_2m_min"] as list)[0] as float);
+            weather_condition = weatherDescription(code);
+            weather_icon = weatherEmoji(code);
+            weather_tint = weatherColor(code);
+            weather_insight = "Bring an umbrella and enjoy a cozy 3-minute read." if code >= 51 and code <= 82 else ("A clear-sky day for a breezy 3-minute read." if code <= 2 else "Take it slow with a 3-minute read between the clouds.");
+            times: list[str] = hourly_data["time"] as list[str];
+            temps: list[float] = hourly_data["temperature_2m"] as list[float];
+            codes: list[int] = hourly_data["weather_code"] as list[int];
+            next_slots: list[dict] = [];
+            current_hour = new(Date).getHours();
+            for slot in [0, 1, 2, 3] {
+                slot_index = min(current_hour + slot * 3, len(times) - 1);
+                time_label = "Now" if slot == 0 else times[slot_index].split("T")[1];
+                slot_code: int = codes[slot_index] as int;
+                slot_temp: float = temps[slot_index] as float;
+                next_slots.append({"time":time_label, "icon":weatherEmoji(slot_code), "temp":str(round(slot_temp)) + "°"});
+            }
+            weather_forecast = next_slots;
+            place_response = await fetch("https://geocoding-api.open-meteo.com/v1/reverse?latitude=" + str(latitude) + "&longitude=" + str(longitude) + "&language=en&format=json");
+            if not place_response.ok { weather_city = "Your area"; }
+            place_data: dict = await place_response.json() as dict;
+            place_results: list[dict] = place_data["results"] as list[dict] if place_data["results"] else [];
+            if len(place_results) > 0 {
+                place: dict = place_results[0];
+                weather_city = place["name"] as str;
+            } else { weather_city = "Your area"; }
+            weather_notice = "Live local forecast · Open-Meteo";
+        } except Exception {
+            weather_notice = "Couldn’t load local weather. Showing Colombo sample conditions.";
+            weather_city = "Colombo";
+            weather_temp = 29;
+            weather_high = 31;
+            weather_low = 25;
+            weather_condition = "Clear";
+            weather_icon = "☀️";
+            weather_tint = "#FFF0D7";
+        }
+        weather_loading = False;
+    }
     def requestWeatherLocation {
         browser_window: any = window as any;
         geo: any = browser_window.navigator.geolocation;
         if geo {
-            geo.getCurrentPosition(lambda (position: any) {
-                weather_city = "Nearby location";
-                weather_notice = "Location permission granted. Local forecast lookup is not connected yet.";
-            }, lambda (error: any) {
+            geo.getCurrentPosition(lambda (position: any) { loadWeather(position.coords.latitude, position.coords.longitude); }, lambda (error: any) {
                 weather_city = "Colombo";
                 weather_notice = "Location unavailable. Showing Colombo sample conditions.";
             }, {"timeout": 8000, "maximumAge": 300000});
-        } else {
-            weather_notice = "Location isn’t available here. Showing Colombo conditions.";
-        }
+        } else { weather_notice = "Location isn’t available here. Showing Colombo sample conditions."; }
     }
     chosen: dict = {};
     for a in feed_articles {
@@ -282,31 +368,32 @@ def:pub app -> JsxElement {
         }}
         <View style={styles.greeting}><Text style={styles.eyebrow}>TUESDAY, OCTOBER 20</Text><Text style={styles.headline}>{tr["home"]}</Text><Text style={styles.subtitle}>{tr["subtitle"]}</Text></View>
         <Pressable accessibilityRole="button" accessibilityLabel={"Weather details " + ("expanded" if weather_expanded else "collapsed") + ". Tap to " + ("collapse" if weather_expanded else "expand")} style={styles.weatherPill} onPress={lambda { weather_expanded = not weather_expanded; }}>
-            <Text style={styles.weatherPillText}>{"☀  " + weather_city + "  ·  29°"}</Text>
-            <Text style={styles.weatherPillMeta}>{"Sunny  ·  " + ("Hide" if weather_expanded else "Plan today")}</Text>
+            <Text style={styles.weatherPillText}>{weather_icon + "  " + weather_city + "  ·  " + str(weather_temp) + "°"}</Text>
+            <Text style={styles.weatherPillMeta}>{weather_condition + "  ·  " + ("Hide" if weather_expanded else "Plan today")}</Text>
         </Pressable>
         {if weather_expanded {
-            <View style={styles.weatherCard}>
-                <View style={styles.weatherGreeting}><Text style={styles.weatherTitle}>{weather_greeting} from LankaPulse</Text><Text style={styles.weatherMeta}>A little sunshine for your day ahead</Text></View>
+            <View style={[styles.weatherCard, styles.weatherCardClear if weather_condition == "Clear" else (styles.weatherCardRain if weather_condition == "Rain" or weather_condition == "Drizzle" or weather_condition == "Showers" else (styles.weatherCardSnow if weather_condition == "Snow" or weather_condition == "Snow showers" else (styles.weatherCardStorm if weather_condition == "Thunderstorm" else styles.weatherCardCloud)))]}>
+                <View style={styles.weatherGreeting}><Text style={styles.weatherTitle}>{weather_greeting + " from LankaPulse"}</Text><Text style={styles.weatherMeta}>A little sunshine for your day ahead</Text></View>
                 <View style={styles.weatherTop}>
                     <View style={styles.weatherTextBlock}>
-                        <Text style={styles.weatherCondition}>SUNNY SPELLS</Text>
-                        <Text style={styles.weatherTemp}>29°</Text>
+                        <Text style={styles.weatherCondition}>{weather_condition.upper()}</Text>
+                        <Text style={styles.weatherTemp}>{str(weather_temp) + "°"}</Text>
                         <Text style={styles.weatherCity}>{weather_city + " · Sri Lanka"}</Text>
-                        <Text style={styles.weatherMeta}>H 31°  ·  L 25°  ·  Feels like 32°</Text>
+                        <Text style={styles.weatherMeta}>{"H " + str(weather_high) + "°  ·  L " + str(weather_low) + "°"}</Text>
                     </View>
-                    <Text style={styles.weatherMascot}>☀️</Text>
+                    <Text style={styles.weatherMascot}>{weather_icon}</Text>
                 </View>
-                <View style={styles.weatherForecastRow}>
-                    <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>Now</Text><Text style={styles.weatherForecastIcon}>☀</Text><Text style={styles.weatherForecastTemp}>29°</Text></View>
-                    <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>3 PM</Text><Text style={styles.weatherForecastIcon}>🌤</Text><Text style={styles.weatherForecastTemp}>30°</Text></View>
-                    <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>6 PM</Text><Text style={styles.weatherForecastIcon}>🌇</Text><Text style={styles.weatherForecastTemp}>28°</Text></View>
-                    <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>9 PM</Text><Text style={styles.weatherForecastIcon}>☾</Text><Text style={styles.weatherForecastTemp}>26°</Text></View>
-                </View>
+                {if weather_loading { <Text style={styles.weatherMeta}>Finding your local forecast…</Text> } else {
+                    <View style={styles.weatherForecastRow}>
+                        <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>{weather_forecast[0]["time"]}</Text><Text style={styles.weatherForecastIcon}>{weather_forecast[0]["icon"]}</Text><Text style={styles.weatherForecastTemp}>{weather_forecast[0]["temp"]}</Text></View>
+                        <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>{weather_forecast[1]["time"]}</Text><Text style={styles.weatherForecastIcon}>{weather_forecast[1]["icon"]}</Text><Text style={styles.weatherForecastTemp}>{weather_forecast[1]["temp"]}</Text></View>
+                        <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>{weather_forecast[2]["time"]}</Text><Text style={styles.weatherForecastIcon}>{weather_forecast[2]["icon"]}</Text><Text style={styles.weatherForecastTemp}>{weather_forecast[2]["temp"]}</Text></View>
+                        <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>{weather_forecast[3]["time"]}</Text><Text style={styles.weatherForecastIcon}>{weather_forecast[3]["icon"]}</Text><Text style={styles.weatherForecastTemp}>{weather_forecast[3]["temp"]}</Text></View>
+                    </View>
+                }}
                 <View style={styles.weatherInsight}><Text style={styles.weatherInsightText}>{weather_insight}</Text></View>
-                <Pressable style={styles.weatherLocationButton} onPress={requestWeatherLocation}><Text style={styles.weatherLocationText}>Use my location</Text></Pressable>
+                <Pressable accessibilityRole="button" style={styles.weatherLocationButton} onPress={requestWeatherLocation}><Text style={styles.weatherLocationText}>{"Updating location…" if weather_loading else "Use my location"}</Text></Pressable>
                 {weather_notice != "" and <Text style={styles.weatherMeta}>{weather_notice}</Text>}
-                <Text style={styles.weatherMeta}>Sample forecast for planning · Weather data not connected</Text>
             </View>
         }}
         <View style={styles.searchRow}><Text style={styles.searchIcon}>⌕</Text><TextInput style={styles.searchInput} value={search_input} placeholder={tr["search"]} placeholderTextColor={palette["muted"]} onChangeText={lambda (value: str) { scheduleSearch(value); }} onSubmitEditing={lambda { rememberSearch(search_input); search_query = search_input.strip(); loadSearchResults(search_input.strip()); }} />{if search_input != "" { <Pressable onPress={lambda { scheduleSearch(""); search_query = ""; }}><Text style={styles.searchIcon}>×</Text></Pressable> }}</View>
