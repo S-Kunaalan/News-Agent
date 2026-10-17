@@ -32,9 +32,7 @@ glob ARTICLES: list[dict] = [
 ];
 
 glob COPY: dict = {
-    "English": {"home":"The day, in the know.", "subtitle":"A thoughtful read from home and around the world.", "stories":"Today’s stories", "saved":"Saved stories", "search":"Search headlines, topics, sources", "refresh":"Refresh", "onboarding":"A little closer to home", "next":"Next", "start":"Start reading", "topics":"Pick what you love", "language":"Language", "settings":"Settings", "theme":"Theme", "font":"Font size", "notifications":"Notifications", "done":"Done", "offline":"You’re offline · Showing your last saved feed"},
-    "සිංහල": {"home":"දවසේ පුවත්, ඔබට සමීපව.", "subtitle":"ශ්‍රී ලංකාවේ සහ ලොව පුරා පුවත්.", "stories":"අද පුවත්", "saved":"සුරැකි පුවත්", "search":"පුවත් සොයන්න", "refresh":"යාවත්කාලීන", "onboarding":"ඔබට සමීප පුවත්", "next":"ඊළඟ", "start":"කියවීම අරඹන්න", "topics":"ඔබ කැමති දේ තෝරන්න", "language":"භාෂාව", "settings":"සැකසුම්", "theme":"තේමාව", "font":"අකුරු ප්‍රමාණය", "notifications":"දැනුම්දීම්", "done":"අවසන්", "offline":"ඔබ නොබැඳිවයි · සුරැකි පුවත් පෙන්වයි"},
-    "தமிழ்": {"home":"உங்கள் நாளின் செய்திகள்.", "subtitle":"இலங்கையிலிருந்தும் உலகிலிருந்தும் செய்திகள்.", "stories":"இன்றைய செய்திகள்", "saved":"சேமித்த செய்திகள்", "search":"தலைப்புகளைத் தேடுங்கள்", "refresh":"புதுப்பி", "onboarding":"உங்கள் அருகிலுள்ள செய்திகள்", "next":"அடுத்து", "start":"வாசிக்கத் தொடங்கு", "topics":"உங்களுக்கு விருப்பமானவற்றைத் தேர்ந்தெடுக்கவும்", "language":"மொழி", "settings":"அமைப்புகள்", "theme":"தோற்றம்", "font":"எழுத்து அளவு", "notifications":"அறிவிப்புகள்", "done":"முடிந்தது", "offline":"இணைய இணைப்பு இல்லை · சேமித்த செய்திகள்"}
+    "English": {"home":"The day, in the know.", "subtitle":"A thoughtful read from home and around the world.", "stories":"Today’s stories", "saved":"Saved stories", "search":"Search headlines, topics, sources", "refresh":"Refresh", "onboarding":"A little closer to home", "next":"Next", "start":"Start reading", "topics":"Pick what you love", "settings":"Settings", "theme":"Theme", "font":"Font size", "notifications":"Notifications", "done":"Done", "offline":"You’re offline · Showing your last saved feed"},
 };
 
 def:pub app -> JsxElement {
@@ -42,7 +40,6 @@ def:pub app -> JsxElement {
         theme_mode: str = "system",
         font_scale: int = 0,
         notifications_on: bool = True,
-        language: str = "English",
         onboarding_step: int = 0,
         onboarding_done: bool = False,
         preferred_topics: list[str] = [],
@@ -66,7 +63,7 @@ def:pub app -> JsxElement {
     viewport = useWindowDimensions();
     styles = darkStyles if dark_mode else lightStyles;
     palette = DARK if dark_mode else LIGHT;
-    tr: dict = COPY[language] as dict;
+    tr: dict = COPY["English"] as dict;
     display_dark = False if theme_mode == "system" else dark_mode;
     styles = darkStyles if display_dark else lightStyles;
     palette = DARK if display_dark else LIGHT;
@@ -91,7 +88,6 @@ def:pub app -> JsxElement {
             settings_raw = localStorage.getItem("lankapulse_settings");
             if settings_raw {
                 settings: dict = JSON.parse(settings_raw) as dict;
-                language = settings["language"] as str if settings["language"] else "English";
                 theme_mode = settings["theme"] as str if settings["theme"] else "system";
                 dark_mode = theme_mode == "dark";
                 font_scale = settings["font_scale"] as int if settings["font_scale"] else 0;
@@ -117,7 +113,7 @@ def:pub app -> JsxElement {
         loading = False;
     }
     def persistSettings {
-        localStorage.setItem("lankapulse_settings", JSON.stringify({"language": language, "theme": theme_mode, "font_scale": font_scale, "notifications": notifications_on}));
+        localStorage.setItem("lankapulse_settings", JSON.stringify({"theme": theme_mode, "font_scale": font_scale, "notifications": notifications_on}));
     }
     def completeOnboarding {
         onboarding_done = True;
@@ -192,20 +188,17 @@ def:pub app -> JsxElement {
         if a["id"] == selected_article { chosen = a; }
     }
     if not onboarding_done {
-        slide_title = "A little closer to home" if onboarding_step == 0 else ("Pick what you love" if onboarding_step == 1 else "Your news, your way");
-        slide_body = "A warm welcome to stories from Sri Lanka and around the world." if onboarding_step == 0 else ("Choose a few topics and we’ll tune your daily reading list." if onboarding_step == 1 else "Choose your language and make LankaPulse feel like yours.");
-        slide_art = "☀" if onboarding_step == 0 else ("✿" if onboarding_step == 1 else "◉");
+        slide_title = "A little closer to home" if onboarding_step == 0 else "Pick what you love";
+        slide_body = "A warm English-language briefing from Sri Lanka and around the world." if onboarding_step == 0 else "Choose a few topics and we’ll tune your daily reading list.";
+        slide_art = "☀" if onboarding_step == 0 else "✿";
         return <ScrollView style={[styles.screen, {"height": viewport.height}]} contentContainerStyle={styles.screenContent}>
             <View style={styles.brandRow}><View style={styles.brandMark}><Text style={styles.brandMarkText}>L</Text></View><Text style={styles.brand}>LankaPulse</Text></View>
             <View style={styles.onboardHero}><Text style={styles.onboardArt}>{slide_art}</Text><Text style={styles.headline}>{slide_title}</Text><Text style={styles.subtitle}>{slide_body}</Text></View>
             {if onboarding_step == 1 {
                 <View style={styles.topicGrid}>{[<Pressable key={topic} style={styles.categoryChipActive if topic in preferred_topics else styles.categoryChip} onPress={lambda { toggleTopic(topic); }}><Text style={styles.categoryChipTextActive if topic in preferred_topics else styles.categoryChipText}>{topic}</Text></Pressable> for topic in TOPICS]}</View>
             }}
-            {if onboarding_step == 2 {
-                <View style={styles.topicGrid}>{[<Pressable key={lang} style={styles.categoryChipActive if language == lang else styles.categoryChip} onPress={lambda { language = lang; persistSettings(); }}><Text style={styles.categoryChipTextActive if language == lang else styles.categoryChipText}>{lang}</Text></Pressable> for lang in ["English", "සිංහල", "தமிழ்"]]}</View>
-            }}
-            <View style={styles.onboardDots}><Text style={styles.sectionMeta}>{"●  ○  ○" if onboarding_step == 0 else ("○  ●  ○" if onboarding_step == 1 else "○  ○  ●")}</Text></View>
-            <Pressable style={styles.detailAction} onPress={lambda { if onboarding_step < 2 { onboarding_step = onboarding_step + 1; } else { completeOnboarding(); } }}><Text style={styles.detailActionText}>{tr["next"] if onboarding_step < 2 else tr["start"]}</Text></Pressable>
+            <View style={styles.onboardDots}><Text style={styles.sectionMeta}>{"●  ○" if onboarding_step == 0 else "○  ●"}</Text></View>
+            <Pressable style={styles.detailAction} onPress={lambda { if onboarding_step < 1 { onboarding_step = onboarding_step + 1; } else { completeOnboarding(); } }}><Text style={styles.detailActionText}>{tr["next"] if onboarding_step < 1 else tr["start"]}</Text></Pressable>
         </ScrollView>;
     }
     return <ScrollView style={[styles.screen, {"height": viewport.height}]} contentContainerStyle={styles.screenContent}>
@@ -213,7 +206,6 @@ def:pub app -> JsxElement {
             <View style={styles.brandRow}><View style={styles.brandMark}><Text style={styles.brandMarkText}>L</Text></View><View><Text style={styles.brand}>LankaPulse</Text><Text style={styles.edition}>A little closer to home</Text></View></View>
             <View style={styles.previewRow}>
                 <Pressable style={styles.themeToggle} onPress={lambda { settings_open = not settings_open; }}><Text style={styles.savedTopText}>{tr["settings"]}</Text></Pressable>
-                <Pressable style={styles.themeToggle} onPress={lambda { language = "English" if language != "English" else "සිංහල"; persistSettings(); }}><Text style={styles.savedTopText}>{language}</Text></Pressable>
             </View>
         </View>
         {if settings_open {
@@ -223,8 +215,6 @@ def:pub app -> JsxElement {
                 <View style={styles.topicGrid}>{[<Pressable key={mode} style={styles.categoryChipActive if theme_mode == mode else styles.categoryChip} onPress={lambda { setTheme(mode); }}><Text style={styles.categoryChipTextActive if theme_mode == mode else styles.categoryChipText}>{mode}</Text></Pressable> for mode in ["light", "dark", "system"]]}</View>
                 <Text style={styles.category}>{(tr["font"] as str) + ": " + str(font_scale + 1)}</Text>
                 <View style={styles.previewRow}><Pressable style={styles.detailClose} onPress={lambda { font_scale = max(0, font_scale - 1); persistSettings(); }}><Text style={styles.detailCloseText}>A−</Text></Pressable><Pressable style={styles.detailClose} onPress={lambda { font_scale = min(2, font_scale + 1); persistSettings(); }}><Text style={styles.detailCloseText}>A+</Text></Pressable></View>
-                <Text style={styles.category}>{tr["language"]}</Text>
-                <View style={styles.topicGrid}>{[<Pressable key={lang} style={styles.categoryChipActive if language == lang else styles.categoryChip} onPress={lambda { language = lang; persistSettings(); }}><Text style={styles.categoryChipTextActive if language == lang else styles.categoryChipText}>{lang}</Text></Pressable> for lang in ["English", "සිංහල", "தமிழ்"]]}</View>
                 <Pressable style={styles.detailActionSecondary} onPress={lambda { notifications_on = not notifications_on; persistSettings(); }}><Text style={styles.detailActionSecondaryText}>{(tr["notifications"] as str) + ": " + ("On" if notifications_on else "Off")}</Text></Pressable>
             </View>
         }}
