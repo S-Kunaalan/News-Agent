@@ -67,16 +67,17 @@ def:pub app -> JsxElement {
         weather_expanded: bool = True,
         weather_city: str = "Colombo",
         weather_notice: str = "",
+        weather_error: bool = False,
         weather_greeting: str = "Good morning",
         weather_insight: str = "A bright day for a breezy 3-minute read on island gardens.",
         weather_temp: int = 29,
         weather_high: int = 31,
         weather_low: int = 25,
         weather_condition: str = "Clear",
-        weather_icon: str = "☀️",
-        weather_tint: str = "#FFF0D7",
+        weather_icon: str = "☼",
+        weather_tint: str = "clear",
         weather_loading: bool = False,
-        weather_forecast: list[dict] = [{"time":"Now", "icon":"☀", "temp":"29°"}, {"time":"3 PM", "icon":"🌤", "temp":"30°"}, {"time":"6 PM", "icon":"🌇", "temp":"28°"}, {"time":"9 PM", "icon":"☾", "temp":"26°"}],
+        weather_forecast: list[dict] = [{"time":"Now", "icon":"☼", "temp":"29°"}, {"time":"3 PM", "icon":"◐", "temp":"30°"}, {"time":"6 PM", "icon":"☼", "temp":"28°"}, {"time":"9 PM", "icon":"☾", "temp":"26°"}],
         debounce_handle: any = None;
     viewport = useWindowDimensions();
     styles = darkStyles if dark_mode else lightStyles;
@@ -268,25 +269,20 @@ def:pub app -> JsxElement {
         return "Changeable";
     }
     def weatherEmoji(code: int) -> str {
-        if code == 0 { return "☀️"; }
-        if code <= 2 { return "🌤️"; }
-        if code <= 3 { return "☁️"; }
-        if code <= 48 { return "🌫️"; }
-        if code <= 67 or code <= 82 { return "🌧️"; }
-        if code <= 86 { return "❄️"; }
-        return "⚡";
+        if code == 0 { return "☼"; }
+        if code <= 2 { return "◐"; }
+        if code <= 3 { return "☁"; }
+        if code <= 48 { return "≋"; }
+        if code <= 67 or code <= 82 { return "☂"; }
+        if code <= 86 { return "❄"; }
+        return "ϟ";
     }
     def weatherColor(code: int) -> str {
-        if code == 0 { return "#FFF0D7"; }
-        if code <= 2 { return "#E4F3FF"; }
-        if code <= 3 { return "#E8EEF7"; }
-        if code <= 48 { return "#E8EAF4"; }
-        if code <= 67 or code <= 82 { return "#E7E7FA"; }
-        if code <= 86 { return "#E5F4FB"; }
-        return "#F2E5F3";
+        return "night" if new(Date).getHours() >= 20 or new(Date).getHours() < 6 else ("rain" if code >= 51 and code <= 82 else "clear");
     }
     async def loadWeather(latitude: float, longitude: float) {
         weather_loading = True;
+        weather_error = False;
         weather_notice = "Finding local conditions…";
         try {
             weather_response = await fetch("https://api.open-meteo.com/v1/forecast?latitude=" + str(latitude) + "&longitude=" + str(longitude) + "&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&hourly=temperature_2m,weather_code&forecast_days=1&timezone=auto");
@@ -326,14 +322,15 @@ def:pub app -> JsxElement {
             } else { weather_city = "Your area"; }
             weather_notice = "Live local forecast · Open-Meteo";
         } except Exception {
-            weather_notice = "Couldn’t load local weather. Showing Colombo sample conditions.";
+            weather_error = True;
+            weather_notice = "";
             weather_city = "Colombo";
             weather_temp = 29;
             weather_high = 31;
             weather_low = 25;
             weather_condition = "Clear";
-            weather_icon = "☀️";
-            weather_tint = "#FFF0D7";
+            weather_icon = "☼";
+            weather_tint = "clear";
         }
         weather_loading = False;
     }
@@ -389,28 +386,38 @@ def:pub app -> JsxElement {
             <Text style={styles.weatherPillMeta}>{weather_condition + "  ·  " + ("Hide" if weather_expanded else "Plan today")}</Text>
         </Pressable>
         {if weather_expanded {
-            <View style={[styles.weatherCard, styles.weatherCardClear if weather_condition == "Clear" else (styles.weatherCardRain if weather_condition == "Rain" or weather_condition == "Drizzle" or weather_condition == "Showers" else (styles.weatherCardSnow if weather_condition == "Snow" or weather_condition == "Snow showers" else (styles.weatherCardStorm if weather_condition == "Thunderstorm" else styles.weatherCardCloud)))]}>
-                <View style={styles.weatherGreeting}><Text style={styles.weatherTitle}>{weather_greeting + " from LankaPulse"}</Text><Text style={styles.weatherMeta}>A little sunshine for your day ahead</Text></View>
-                <View style={styles.weatherTop}>
-                    <View style={styles.weatherTextBlock}>
-                        <Text style={styles.weatherCondition}>{weather_condition.upper()}</Text>
-                        <Text style={styles.weatherTemp}>{str(weather_temp) + "°"}</Text>
-                        <Text style={styles.weatherCity}>{weather_city + " · Sri Lanka"}</Text>
-                        <Text style={styles.weatherMeta}>{"H " + str(weather_high) + "°  ·  L " + str(weather_low) + "°"}</Text>
-                    </View>
-                    <Text style={styles.weatherMascot}>{weather_icon}</Text>
-                </View>
-                {if weather_loading { <Text style={styles.weatherMeta}>Finding your local forecast…</Text> } else {
-                    <View style={styles.weatherForecastRow}>
-                        <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>{weather_forecast[0]["time"]}</Text><Text style={styles.weatherForecastIcon}>{weather_forecast[0]["icon"]}</Text><Text style={styles.weatherForecastTemp}>{weather_forecast[0]["temp"]}</Text></View>
-                        <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>{weather_forecast[1]["time"]}</Text><Text style={styles.weatherForecastIcon}>{weather_forecast[1]["icon"]}</Text><Text style={styles.weatherForecastTemp}>{weather_forecast[1]["temp"]}</Text></View>
-                        <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>{weather_forecast[2]["time"]}</Text><Text style={styles.weatherForecastIcon}>{weather_forecast[2]["icon"]}</Text><Text style={styles.weatherForecastTemp}>{weather_forecast[2]["temp"]}</Text></View>
-                        <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>{weather_forecast[3]["time"]}</Text><Text style={styles.weatherForecastIcon}>{weather_forecast[3]["icon"]}</Text><Text style={styles.weatherForecastTemp}>{weather_forecast[3]["temp"]}</Text></View>
+            <View style={[styles.weatherCard, styles.weatherCardRain if weather_tint == "rain" else (styles.weatherCardNight if weather_tint == "night" else styles.weatherCard)]}>
+                {if weather_loading {
+                    <View><View style={styles.weatherLoadingBlock}/><View style={styles.weatherLoadingWide}/><View style={styles.weatherLoadingBlock}/></View>
+                } else {
+                    <View>
+                        {if weather_error {
+                            <Pressable accessibilityRole="button" style={styles.weatherLocationButton} onPress={requestWeatherLocation}><Text style={styles.weatherError}>Weather unavailable. Tap to retry</Text></Pressable>
+                        } else {
+                            <View>
+                                <View style={styles.weatherGreeting}><Text style={styles.weatherTitle}>{weather_greeting + " from LankaPulse"}</Text><Text style={styles.weatherMeta}>A little sunshine for your day ahead</Text></View>
+                                <View style={styles.weatherTop}>
+                                    <View style={styles.weatherTextBlock}>
+                                        <Text style={styles.weatherTemp}>{str(weather_temp) + "°"}</Text>
+                                        <Text style={styles.weatherCondition}>{weather_condition}</Text>
+                                        <Text style={styles.weatherCity}>{weather_city + " · Sri Lanka"}</Text>
+                                        <Text style={styles.weatherMeta}>{"H " + str(weather_high) + "°  ·  L " + str(weather_low) + "°"}</Text>
+                                    </View>
+                                    <View style={styles.weatherGlyphGlow}><Text style={styles.weatherGlyph}>{weather_icon}</Text></View>
+                                </View>
+                                <View style={styles.weatherForecastRow}>
+                                    <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>{weather_forecast[0]["time"]}</Text><Text style={styles.weatherForecastIcon}>{weather_forecast[0]["icon"]}</Text><Text style={styles.weatherForecastTemp}>{weather_forecast[0]["temp"]}</Text></View>
+                                    <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>{weather_forecast[1]["time"]}</Text><Text style={styles.weatherForecastIcon}>{weather_forecast[1]["icon"]}</Text><Text style={styles.weatherForecastTemp}>{weather_forecast[1]["temp"]}</Text></View>
+                                    <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>{weather_forecast[2]["time"]}</Text><Text style={styles.weatherForecastIcon}>{weather_forecast[2]["icon"]}</Text><Text style={styles.weatherForecastTemp}>{weather_forecast[2]["temp"]}</Text></View>
+                                    <View style={styles.weatherForecastItem}><Text style={styles.weatherForecastTime}>{weather_forecast[3]["time"]}</Text><Text style={styles.weatherForecastIcon}>{weather_forecast[3]["icon"]}</Text><Text style={styles.weatherForecastTemp}>{weather_forecast[3]["temp"]}</Text></View>
+                                </View>
+                                <View style={styles.weatherInsight}><Text style={styles.weatherInsightText}>{weather_insight}</Text></View>
+                                <Pressable accessibilityRole="button" style={styles.weatherLocationButton} onPress={requestWeatherLocation}><Text style={styles.weatherLocationText}>Use my location</Text></Pressable>
+                                {weather_notice != "" and <Text style={styles.weatherMeta}>{weather_notice}</Text>}
+                            </View>
+                        }}
                     </View>
                 }}
-                <View style={styles.weatherInsight}><Text style={styles.weatherInsightText}>{weather_insight}</Text></View>
-                <Pressable accessibilityRole="button" style={styles.weatherLocationButton} onPress={requestWeatherLocation}><Text style={styles.weatherLocationText}>{"Updating location…" if weather_loading else "Use my location"}</Text></Pressable>
-                {weather_notice != "" and <Text style={styles.weatherMeta}>{weather_notice}</Text>}
             </View>
         }}
         <View style={styles.searchRow}><Text style={styles.searchIcon}>⌕</Text><TextInput style={styles.searchInput} value={search_input} placeholder={tr["search"]} placeholderTextColor={palette["muted"]} onChangeText={lambda (value: str) { scheduleSearch(value); }} onSubmitEditing={lambda { rememberSearch(search_input); search_query = search_input.strip(); loadSearchResults(search_input.strip()); }} />{if search_input != "" { <Pressable onPress={lambda { scheduleSearch(""); search_query = ""; }}><Text style={styles.searchIcon}>×</Text></Pressable> }}</View>
