@@ -94,6 +94,13 @@ def:pub app -> JsxElement {
     filtered: list[dict] = [a for a in feed_articles if (category == "All" or a["category"] == category) and (search_query == "" or search_query.lower() in (a["title"] as str).lower() or search_query.lower() in (a["summary"] as str).lower() or search_query.lower() in (a["source"] as str).lower()) and (not saved_only or a["id"] in saved_ids)];
     visible: list[dict] = [a for (i, a) in enumerate(filtered) if i < visible_count];
     saved_total = len(saved_ids);
+    async def fetch_articles(query: str = "") -> list[dict] {
+        query_suffix = "?page_size=100" if query == "" else "?page_size=100&q=" + encodeURIComponent(query);
+        response = await fetch("/articles" + query_suffix, {"method":"GET", "headers":{"Accept":"application/json"}});
+        if not response.ok { raise Exception("Articles request failed: " + str(response.status)); }
+        payload: dict = await response.json() as dict;
+        return payload["articles"] as list[dict];
+    }
     def mapArticles(raw_articles: list[dict]) -> list[dict] {
         mapped: list[dict] = [];
         for article in raw_articles {
@@ -132,8 +139,8 @@ def:pub app -> JsxElement {
             if cached_raw { server_articles = JSON.parse(cached_raw) as list[dict]; }
         } except Exception {}
         try {
-            article_payload: dict = await get_articles();
-            live_articles: list[dict] = mapArticles(article_payload["articles"] as list[dict]);
+            raw_articles: list[dict] = await fetch_articles();
+            live_articles: list[dict] = mapArticles(raw_articles);
             offline = False;
             if len(live_articles) > 0 {
                 server_articles = live_articles;
@@ -158,8 +165,8 @@ def:pub app -> JsxElement {
     }
     async def loadSearchResults(query: str) {
         try {
-            result_payload: dict = await get_articles(q=query, page_size=100);
-            live_results: list[dict] = mapArticles(result_payload["articles"] as list[dict]);
+            raw_results: list[dict] = await fetch_articles(query);
+            live_results: list[dict] = mapArticles(raw_results);
             offline = False;
             if len(live_results) > 0 {
                 server_articles = live_results;
@@ -228,8 +235,8 @@ def:pub app -> JsxElement {
     async def refreshArticles {
         refreshing = True;
         try {
-            result_payload: dict = await get_articles(q=search_query, page_size=100);
-            live_articles: list[dict] = mapArticles(result_payload["articles"] as list[dict]);
+            raw_articles: list[dict] = await fetch_articles(search_query);
+            live_articles: list[dict] = mapArticles(raw_articles);
             offline = False;
             if len(live_articles) > 0 {
                 server_articles = live_articles;
