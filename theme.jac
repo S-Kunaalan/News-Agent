@@ -4,12 +4,12 @@ import from "@jac/mobui" { StyleSheet }
 
 glob:pub LIGHT: dict = {
     "bg": "#FFF9F0", "surface": "#FFFFFF", "surfaceWarm": "#FFF0D9",
-    "border": "#EEDFCB", "text": "#30251E", "muted": "#746457",
-    "accent": "#D98235", "accentDark": "#884218", "accentText": "#FFFFFF",
-    "green": "#52785A", "skeleton": "#F0E7DB",
+    "border": "#EEDFCB", "text": "#30251E", "muted": "#6B5B4E",
+    "accent": "#B25A17", "accentDark": "#7A3A10", "accentText": "#FFFFFF",
+    "green": "#3F6648", "skeleton": "#F0E7DB",
     "weatherCard": "#FFF0D9", "weatherCardRain": "#E4E6F5", "weatherCardNight": "#E7E9F8",
     "weatherSurface": "rgba(255,255,255,0.66)", "weatherGlow": "#F6C46F",
-    "weatherIcon": "#7C4B1F", "weatherBorder": "#E8D4B8"
+    "weatherIcon": "#6B3F14", "weatherBorder": "#E8D4B8"
 },
 DARK: dict = {
     "bg": "#171A17", "surface": "#222721", "surfaceWarm": "#302A20",
@@ -17,7 +17,7 @@ DARK: dict = {
     "accent": "#E39A51", "accentDark": "#F1B36C", "accentText": "#211910",
     "green": "#A6C69B", "skeleton": "#343931",
     "weatherCard": "#322A21", "weatherCardRain": "#242D3B", "weatherCardNight": "#20263A",
-    "weatherSurface": "rgba(15,18,25,0.42)", "weatherGlow": "#B77A39",
+    "weatherSurface": "rgba(15,18,25,0.42)", "weatherGlow": "#8A5A28",
     "weatherIcon": "#FFE0A6", "weatherBorder": "#5A4A39"
 },
 S: dict = {"xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24, "xxl": 32},
@@ -42,9 +42,6 @@ def:pub buildStyles(C: dict) -> any {
         "eyebrow": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["accentDark"], "letterSpacing": 1},
         "headline": {"fontSize": F["xl"], "fontWeight": "bold", "lineHeight": 34, "color": C["text"]},
         "subtitle": {"fontSize": F["sm"], "lineHeight": 20, "color": C["muted"]},
-        "weatherCard": {"flexDirection": "row", "alignItems": "center", "justifyContent": "space-between", "padding": 16, "borderRadius": R["lg"], "backgroundColor": C["surfaceWarm"]},
-        "weatherTitle": {"fontSize": F["sm"], "fontWeight": "bold", "color": C["text"]},
-        "weatherMeta": {"fontSize": F["xs"], "color": C["muted"], "marginTop": 4},
         "weatherIcon": {"fontSize": 25, "color": C["accentDark"]},
         "sectionRow": {"flexDirection": "row", "alignItems": "center", "justifyContent": "space-between"},
         "sectionTitle": {"fontSize": F["lg"], "fontWeight": "bold", "color": C["text"]},
