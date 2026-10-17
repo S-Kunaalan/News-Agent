@@ -1,4 +1,4 @@
-"""Graph-backed, failure-tolerant news aggregation service."""
+"""News aggregation and AI article-summary service for LankaPulse."""
 
 import json;
 import os;
@@ -9,6 +9,20 @@ import xml.etree.ElementTree as ET;
 import from datetime { datetime, timezone }
 import from email.utils { parsedate_to_datetime }
 import from http { HTTPMethod }
+import from jaclang.byllm.lib { Model }
+
+glob:priv summary_llm: Model = Model(model_name="gpt-4o-mini");
+glob:priv summary_calls: dict[str, list[float]] = {};
+
+obj ArticleSummary {
+    has bullets: list[str];
+}
+sem ArticleSummary.bullets = "Exactly three concise English bullet points. Each is one sentence, faithful only to the supplied headline and snippet, and contains no invented details.";
+
+def:priv summarize_headline(title: str, snippet: str) -> ArticleSummary by summary_llm(temperature=0.2, max_tokens=220);
+sem summarize_headline = "Create a short English-only news summary with exactly three bullet points, using only the supplied title and snippet. Never infer missing facts.";
+sem summarize_headline.title = "The article headline.";
+sem summarize_headline.snippet = "The publisher-provided short snippet. Do not add facts beyond it.";
 
 node Article {
     has id: str,
@@ -167,9 +181,7 @@ def:pub get_articles(region: str = "", category: str = "", q: str = "", page: in
         try {
             age_seconds = (now - datetime.fromisoformat(last_refresh)).total_seconds();
             needs_refresh = age_seconds >= 900;
-        } except Exception {
-            needs_refresh = True;
-        }
+        } except Exception { needs_refresh = True; }
     }
     existing = [root -->][?:Article];
     if needs_refresh {
@@ -177,29 +189,20 @@ def:pub get_articles(region: str = "", category: str = "", q: str = "", page: in
         if len(fetched) > 0 {
             for item in fetched {
                 already_stored = False;
-                for old in existing {
-                    if old.url == (item["url"] as str) { already_stored = True; }
-                }
+                for old in existing { if old.url == (item["url"] as str) { already_stored = True; } }
                 if not already_stored {
-                    root ++> Article(
-                        id=item["id"] as str,
-                        title=item["title"] as str,
-                        snippet=item["snippet"] as str,
-                        imageUrl=item["imageUrl"] as str,
-                        source=item["source"] as str,
-                        url=item["url"] as str,
-                        publishedAt=item["publishedAt"] as str,
-                        category=item["category"] as str,
-                        region=item["region"] as str,
-                        language=item["language"] as str
-                    );
+                    root ++> Article(id=item["id"] as str, title=item["title"] as str,
+                        snippet=item["snippet"] as str, imageUrl=item["imageUrl"] as str,
+                        source=item["source"] as str, url=item["url"] as str,
+                        publishedAt=item["publishedAt"] as str, category=item["category"] as str,
+                        region=item["region"] as str, language=item["language"] as str);
                 }
             }
+            if len(cache_nodes) > 0 { cache_nodes[0].last_refresh = now.isoformat(); }
+            else { root ++> ArticleRefreshState(last_refresh=now.isoformat()); }
+            last_refresh = now.isoformat();
+            existing = [root -->][?:Article];
         }
-        if len(cache_nodes) > 0 { cache_nodes[0].last_refresh = now.isoformat(); }
-        else { root ++> ArticleRefreshState(last_refresh=now.isoformat()); }
-        existing = [root -->][?:Article];
-        last_refresh = now.isoformat();
     }
     filtered: list[Article] = [];
     region_key = region.strip().lower();
@@ -218,16 +221,40 @@ def:pub get_articles(region: str = "", category: str = "", q: str = "", page: in
     safe_size = min(max(1, page_size), 100);
     start_index = (safe_page - 1) * safe_size;
     end_index = start_index + safe_size;
-    page_items = filtered[start_index:end_index];
-    return {"articles": page_items, "total": len(filtered), "page": safe_page,
+    return {"articles": filtered[start_index:end_index], "total": len(filtered), "page": safe_page,
         "page_size": safe_size, "has_more": end_index < len(filtered), "last_refresh": last_refresh};
-}
-
-def:pub load_feed(region: str = "", category: str = "", q: str = "", page: int = 1, page_size: int = 20) -> dict {
-    return get_articles(region, category, q, page, page_size);
 }
 
 @restspec(method=HTTPMethod.GET, path="/articles")
 def:pub articles_rest(region: str = "", category: str = "", q: str = "", page: int = 1, page_size: int = 20) -> dict {
     return get_articles(region, category, q, page, page_size);
+}
+
+"""Generate exactly three concise English bullets from the supplied headline and snippet."""
+@restspec(method=HTTPMethod.POST, path="/summarize")
+def:pub summarize_article(title: str, snippet: str) -> dict {
+    import from time { time }
+    client_key = "anonymous";
+    now_seconds = time();
+    history = summary_calls[client_key] if client_key in summary_calls else [];
+    recent = [t for t in history if now_seconds - t < 60.0];
+    if len(recent) >= 5 {
+        return {"error": "rate_limited", "message": "Please wait a minute before requesting another summary."};
+    }
+    summary_calls[client_key] = recent + [now_seconds];
+    if len(title.strip()) == 0 and len(snippet.strip()) == 0 {
+        return {"error": "empty_article", "message": "A headline or snippet is needed to summarize this story."};
+    }
+    try {
+        result = summarize_headline(title[:300], snippet[:200]);
+        bullets = result.bullets[:3];
+        if len(bullets) != 3 {
+            return {"error": "summary_unavailable", "message": "The summary could not be generated. Please try again."};
+        }
+        return {"bullets": bullets, "disclosure": "AI-generated summary based only on the headline and publisher snippet."};
+    } except Exception as error {
+        import logging;
+        logging.getLogger("lankapulse.ai").warning("Article summary failed: %s", str(error));
+        return {"error": "summary_unavailable", "message": "AI summaries are temporarily unavailable. Please try again later."};
+    }
 }

@@ -124,6 +124,9 @@ def:pub buildStyles(C: dict) -> any {
         "offlineBanner": {"flexDirection": "row", "alignItems": "center", "gap": 8, "paddingVertical": 10, "paddingHorizontal": 13, "borderRadius": R["md"], "backgroundColor": C["surfaceWarm"]},
         "offlineDot": {"width": 8, "height": 8, "borderRadius": R["pill"], "backgroundColor": C["accent"]},
         "offlineText": {"fontSize": F["xs"], "fontWeight": "bold", "color": C["accentDark"]},
-        "savedMode": {"paddingVertical": 8, "paddingHorizontal": 12, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"]}
+        "savedMode": {"paddingVertical": 8, "paddingHorizontal": 12, "borderRadius": R["pill"], "backgroundColor": C["surfaceWarm"]},
+        "aiDisclosure": {"fontSize": F["xs"], "lineHeight": 17, "color": C["muted"]},
+        "aiSummaryCard": {"padding": 14, "gap": 9, "borderRadius": R["md"], "backgroundColor": C["surfaceWarm"]},
+        "aiBullet": {"fontSize": F["sm"], "lineHeight": 20, "color": C["text"]}
     });
 }

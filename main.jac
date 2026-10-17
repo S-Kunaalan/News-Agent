@@ -1,7 +1,7 @@
 """LankaPulse news reader: multilingual feed, onboarding and settings."""
 
 import from "@jac/mobui" { View, Text, Pressable, ScrollView, Image, TextInput, useWindowDimensions }
-import from services.articles { get_articles, articles_rest }
+import from services.articles { get_articles, articles_rest, summarize_article }
 import from .theme { LIGHT, DARK, buildStyles }
 
 glob lightStyles = buildStyles(LIGHT);
@@ -59,6 +59,11 @@ def:pub app -> JsxElement {
         empty_demo: bool = False,
         selected_article: str = "",
         action_message: str = "",
+        summary_bullets: list[str] = [],
+        summary_disclosure: str = "",
+        summary_error: str = "",
+        summary_loading: bool = False,
+        listening: bool = False,
         debounce_handle: any = None;
     viewport = useWindowDimensions();
     styles = darkStyles if dark_mode else lightStyles;
@@ -153,6 +158,40 @@ def:pub app -> JsxElement {
         saved_ids = [sid for sid in saved_ids if sid != article_id] if article_id in saved_ids else saved_ids + [article_id];
         localStorage.setItem("lankapulse_saved_ids", JSON.stringify(saved_ids));
     }
+    async def makeArticleSummary {
+        summary_loading = True;
+        summary_error = "";
+        try {
+            response = await fetch("/summarize", {"method": "POST", "headers": {"Content-Type": "application/json"}, "body": JSON.stringify({"title": chosen["title"], "snippet": chosen["summary"]})});
+            payload = await response.json();
+            data: dict = payload["data"] as dict if payload["data"] else {};
+            result: dict = data["result"] as dict if data["result"] else (payload["error"] as dict if payload["error"] else {});
+            if result["error"] {
+                summary_error = result["message"] as str;
+            } else {
+                summary_bullets = result["bullets"] as list[str];
+                summary_disclosure = result["disclosure"] as str;
+            }
+        } except Exception {
+            summary_error = "Summary service is unavailable. Please try again.";
+        }
+        summary_loading = False;
+    }
+    def listenToArticle {
+        browser_window: any = window as any;
+        speech: any = browser_window.speechSynthesis;
+        if speech {
+            if listening { speech.cancel(); listening = False; }
+            else {
+                utterance: any = new(browser_window.SpeechSynthesisUtterance, (chosen["title"] as str) + ". " + (chosen["summary"] as str));
+                utterance.onend = lambda { listening = False; };
+                utterance.onerror = lambda { listening = False; };
+                speech.speak(utterance);
+                listening = True;
+                action_message = "Reading this short story preview aloud.";
+            }
+        } else { action_message = "Audio playback is not available on this device."; }
+    }
     async def refreshArticles {
         refreshing = True;
         try {
@@ -215,6 +254,7 @@ def:pub app -> JsxElement {
                 <View style={styles.topicGrid}>{[<Pressable key={mode} style={styles.categoryChipActive if theme_mode == mode else styles.categoryChip} onPress={lambda { setTheme(mode); }}><Text style={styles.categoryChipTextActive if theme_mode == mode else styles.categoryChipText}>{mode}</Text></Pressable> for mode in ["light", "dark", "system"]]}</View>
                 <Text style={styles.category}>{(tr["font"] as str) + ": " + str(font_scale + 1)}</Text>
                 <View style={styles.previewRow}><Pressable style={styles.detailClose} onPress={lambda { font_scale = max(0, font_scale - 1); persistSettings(); }}><Text style={styles.detailCloseText}>A−</Text></Pressable><Pressable style={styles.detailClose} onPress={lambda { font_scale = min(2, font_scale + 1); persistSettings(); }}><Text style={styles.detailCloseText}>A+</Text></Pressable></View>
+                <Text style={styles.aiDisclosure}>AI summaries use OPENAI_API_KEY from the server environment. Add it in JacHammer Settings → Environment, then restart the preview.</Text>
                 <Pressable style={styles.detailActionSecondary} onPress={lambda { notifications_on = not notifications_on; persistSettings(); }}><Text style={styles.detailActionSecondaryText}>{(tr["notifications"] as str) + ": " + ("On" if notifications_on else "Off")}</Text></Pressable>
             </View>
         }}
@@ -226,7 +266,27 @@ def:pub app -> JsxElement {
         {if feed_notice != "" { <View style={styles.empty}><Text style={styles.emptyText}>{feed_notice}</Text><Pressable style={styles.detailClose} onPress={refreshArticles}><Text style={styles.detailCloseText}>Retry</Text></Pressable></View> }}
         {if loading { <View style={styles.skeletonCard}><View style={styles.skeletonImage}/><View style={styles.skeletonWide}/><View style={styles.skeletonBlock}/><View style={styles.skeletonShort}/></View> }}
         <ScrollView horizontal={True} showsHorizontalScrollIndicator={False} style={styles.categoryScroll} contentContainerStyle={styles.categoryRow}>{[<Pressable key={item} style={styles.categoryChipActive if category == item else styles.categoryChip} onPress={lambda { category = item; visible_count = 6; empty_demo = False; }}><Text style={styles.categoryChipTextActive if category == item else styles.categoryChipText}>{item}</Text></Pressable> for item in CATEGORIES]}</ScrollView>
-        {if selected_article != "" { <View style={styles.detailPanel}><Pressable style={styles.detailBack} onPress={lambda { selected_article = ""; action_message = ""; }}><Text style={styles.detailCloseText}>Back to headlines</Text></Pressable><Image source={{"uri": chosen["image"]}} style={styles.detailImage} resizeMode="cover"/><View style={styles.feedHeader}><View style={styles.previewChip}><Text style={styles.previewChipText}>{chosen["topic"]}</Text></View><Text style={styles.meta}>{chosen["date"] if chosen["date"] else "Latest"}</Text></View><Text style={styles.detailHeadline}>{chosen["title"]}</Text><Text style={styles.source}>{"By " + (chosen["source"] as str)}</Text><Text style={styles.detailSummary}>{chosen["summary"]}</Text><View style={styles.detailActionRow}><Pressable style={styles.detailAction} onPress={lambda { window.open(chosen["url"], "_blank"); }}><Text style={styles.detailActionText}>Read full story</Text></Pressable><Pressable style={styles.detailActionSecondary} onPress={lambda { action_message = "Share: " + (chosen["url"] as str); }}><Text style={styles.detailActionSecondaryText}>Share</Text></Pressable></View><Pressable style={styles.detailActionSecondary} onPress={lambda { toggleSaved(chosen["id"] as str); }}><Text style={styles.detailActionSecondaryText}>{"Saved" if chosen["id"] in saved_ids else "Save this story"}</Text></Pressable>{if action_message != "" { <Text style={styles.detailCloseText}>{action_message}</Text> }}</View> }}
+        {if selected_article != "" {
+            <View style={styles.detailPanel}>
+                <Pressable style={styles.detailBack} onPress={lambda { selected_article = ""; action_message = ""; summary_bullets = []; summary_error = ""; listening = False; }}><Text style={styles.detailCloseText}>Back to headlines</Text></Pressable>
+                <Image source={{"uri": chosen["image"]}} style={styles.detailImage} resizeMode="cover"/>
+                <View style={styles.feedHeader}><View style={styles.previewChip}><Text style={styles.previewChipText}>{chosen["topic"]}</Text></View><Text style={styles.meta}>{chosen["date"] if chosen["date"] else "Latest"}</Text></View>
+                <Text style={styles.detailHeadline}>{chosen["title"]}</Text>
+                <Text style={styles.source}>{"By " + (chosen["source"] as str)}</Text>
+                <Text style={styles.detailSummary}>{chosen["summary"]}</Text>
+                <View style={styles.detailActionRow}>
+                    <Pressable style={styles.detailActionSecondary} onPress={makeArticleSummary}><Text style={styles.detailActionSecondaryText}>{"Summarizing…" if summary_loading else "AI Summary"}</Text></Pressable>
+                    <Pressable style={styles.detailActionSecondary} onPress={listenToArticle}><Text style={styles.detailActionSecondaryText}>{"Stop listening" if listening else "Listen"}</Text></Pressable>
+                </View>
+                <Text style={styles.sectionMeta}>AI-generated summary based only on the headline and publisher snippet.</Text>
+                {if summary_loading { <View style={styles.skeletonCard}><View style={styles.skeletonBlock}/><View style={styles.skeletonBlock}/><View style={styles.skeletonShort}/></View> }}
+                {if summary_error != "" { <Text style={styles.detailCloseText}>{summary_error}</Text> }}
+                {if len(summary_bullets) > 0 { <View style={styles.detail}><Text style={styles.category}>AI-GENERATED SUMMARY</Text>{[<Text key={str(index)} style={styles.detailBody}>{"• " + bullet}</Text> for (index, bullet) in enumerate(summary_bullets)]}</View> }}
+                <View style={styles.detailActionRow}><Pressable style={styles.detailAction} onPress={lambda { window.open(chosen["url"], "_blank"); }}><Text style={styles.detailActionText}>Read full story</Text></Pressable><Pressable style={styles.detailActionSecondary} onPress={lambda { action_message = "Share: " + (chosen["url"] as str); }}><Text style={styles.detailActionSecondaryText}>Share</Text></Pressable></View>
+                <Pressable style={styles.detailActionSecondary} onPress={lambda { toggleSaved(chosen["id"] as str); }}><Text style={styles.detailActionSecondaryText}>{"Saved" if chosen["id"] in saved_ids else "Save this story"}</Text></Pressable>
+                {if action_message != "" { <Text style={styles.detailCloseText}>{action_message}</Text> }}
+            </View>
+        }}
         <View style={styles.storyList}>
             {if len(visible) == 0 {
                 <View style={styles.empty}>
