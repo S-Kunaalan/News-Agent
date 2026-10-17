@@ -7,39 +7,28 @@ import xml.etree.ElementTree as ET;
 import from datetime { datetime, timezone }
 import from email.utils { parsedate_to_datetime }
 import from http { HTTPMethod }
-import from concurrent.futures { ThreadPoolExecutor }
 import from jaclang.byllm.lib { Model }
 
-# Accepts either variable name. Verify the model name exists in Google AI Studio.
-glob:priv summary_llm: Model = Model(model_name="gemini/gemini-3.8-flash", api_key=os.environ.get("Gemini_API_Key", os.environ.get("MY_API_KEY", "")));
+# Support both MY_API_KEY and Gemini_API_Key gracefully
+api_key_val = os.environ.get("MY_API_KEY", "") if os.environ.get("MY_API_KEY") else os.environ.get("Gemini_API_Key", "");
+glob:priv summary_llm: Model = Model(model_name="gemini/gemini-2.5-flash", api_key=api_key_val);
 glob:priv summary_calls: dict[str, list[float]] = {};
 
-# region = local/foreign. "category" is an optional hint; empty means detect from the text.
 glob NEWS_SOURCES: list[dict] = [
-    {"name":"Ada Derana", "url":"https://www.adaderana.lk/rss.php", "region":"local", "kind":"rss", "category":""},
-    {"name":"EconomyNext", "url":"https://economynext.com/feed/", "region":"local", "kind":"rss", "category":"business"},
-    {"name":"Sri Lanka Mirror", "url":"https://srilankamirror.com/feed/", "region":"local", "kind":"rss", "category":""},
-    {"name":"BBC Asia", "url":"https://feeds.bbci.co.uk/news/world/asia/rss.xml", "region":"foreign", "kind":"rss", "category":""},
-    {"name":"The Guardian", "url":"https://www.theguardian.com/world/rss", "region":"foreign", "kind":"rss", "category":""},
-    {"name":"Al Jazeera", "url":"https://www.aljazeera.com/xml/rss/all.xml", "region":"foreign", "kind":"rss", "category":""},
-    {"name":"BBC Sport", "url":"https://feeds.bbci.co.uk/sport/rss.xml", "region":"foreign", "kind":"rss", "category":"sports"},
-    {"name":"BBC Business", "url":"https://feeds.bbci.co.uk/news/business/rss.xml", "region":"foreign", "kind":"rss", "category":"business"},
-    {"name":"BBC Technology", "url":"https://feeds.bbci.co.uk/news/technology/rss.xml", "region":"foreign", "kind":"rss", "category":"tech"}
+    {"name":"Ada Derana", "url":"https://www.adaderana.lk/rss.php", "region":"local", "kind":"rss"},
+    {"name":"EconomyNext", "url":"https://economynext.com/feed/", "region":"local", "kind":"rss"},
+    {"name":"Sri Lanka Mirror", "url":"https://srilankamirror.com/feed/", "region":"local", "kind":"rss"},
+    {"name":"BBC Asia", "url":"https://feeds.bbci.co.uk/news/world/asia/rss.xml", "region":"foreign", "kind":"rss"},
+    {"name":"The Guardian", "url":"https://www.theguardian.com/world/rss", "region":"foreign", "kind":"rss"},
+    {"name":"Al Jazeera", "url":"https://www.aljazeera.com/xml/rss/all.xml", "region":"foreign", "kind":"rss"}
 ];
-
-glob CATEGORY_KEYWORDS: dict = {
-    "sports": ["cricket", "wicket", "match", "tournament", "football", "rugby", "olympic", "tennis", "league", "athlete", "t20", "odi", "stadium"],
-    "business": ["economy", "economic", "inflation", "bank", "stocks", "shares", "budget", "tax", "export", "import", "trade", "imf", "rupee", "market", "tourism"],
-    "tech": ["technology", "tech", "software", "app", "ai", "startup", "cyber", "digital", "internet", "robot", "smartphone"],
-    "entertainment": ["film", "movie", "music", "singer", "actor", "actress", "concert", "festival", "celebrity", "cinema", "drama"]
-};
 
 obj ArticleSummary {
     has bullets: list[str];
 }
 sem ArticleSummary.bullets = "Exactly three concise English bullet points. Each is one sentence, faithful only to the supplied headline and snippet, and contains no invented details.";
 
-def:priv summarize_headline(title: str, snippet: str) -> ArticleSummary by summary_llm(temperature=0.3, max_tokens=220);
+def:priv summarize_headline(title: str, snippet: str) -> ArticleSummary by summary_llm(temperature=1.0, max_tokens=220);
 sem summarize_headline = "Create a short English-only news summary with exactly three bullet points, using only the supplied title and snippet. Never infer missing facts.";
 sem summarize_headline.title = "The article headline.";
 sem summarize_headline.snippet = "The publisher-provided short snippet. Do not add facts beyond it.";
@@ -86,46 +75,18 @@ def normalize_date(value: str) -> str {
     }
 }
 
-def time_ago(iso: str) -> str {
-    try {
-        seconds = (datetime.now(timezone.utc) - datetime.fromisoformat(iso)).total_seconds();
-        if seconds < 90 { return "Just now"; }
-        if seconds < 3600 { return str(int(seconds // 60)) + " min ago"; }
-        if seconds < 86400 {
-            hours = int(seconds // 3600);
-            return str(hours) + (" hr ago" if hours == 1 else " hrs ago");
-        }
-        days = int(seconds // 86400);
-        return str(days) + (" day ago" if days == 1 else " days ago");
-    } except Exception {
-        return "Latest";
-    }
-}
-
-def detect_category(title: str, snippet: str, hint: str) -> str {
-    if hint { return hint; }
-    text = (title + " " + snippet).lower();
-    for (name, words) in CATEGORY_KEYWORDS.items() {
-        for word in words {
-            if re.search(r"\b" + word + r"\b", text) { return name; }
-        }
-    }
-    return "general";
-}
-
 def fetch_url(url: str) -> bytes {
     req = request.Request(url, headers={"User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 LankaPulse/1.0", "Accept":"application/rss+xml, application/atom+xml, application/xml, text/xml;q=0.9, */*;q=0.8"});
-    response = request.urlopen(req, timeout=8);
+    response = request.urlopen(req, timeout=10);
     content: bytes = response.read();
     response.close();
     return content;
 }
 
-# FIX: XML elements with no children are "falsy", so always compare with None.
 def rss_text(item_node: any, tag: str) -> str {
     found = item_node.find(tag);
-    if found is None { found = item_node.find("{*}" + tag); }
-    if found is not None and found.text { return found.text; }
+    if not found { found = item_node.find("{*}" + tag); }
+    if found and found.text { return found.text; }
     return "";
 }
 
@@ -135,13 +96,12 @@ def parse_rss_source(source: dict) -> list[dict] {
     entries = feed.findall(".//item");
     if len(entries) == 0 { entries = feed.findall(".//{*}entry"); }
     output: list[dict] = [];
-    hint = source["category"] as str if "category" in source else "";
     for rss_item in entries {
         title = clean_text(rss_text(rss_item, "title"));
-        link = rss_text(rss_item, "link").strip();
+        link = rss_text(rss_item, "link");
         if not link {
             link_node = rss_item.find("{*}link");
-            if link_node is not None { link = link_node.attrib.get("href", "") as str; }
+            if link_node { link = link_node.attrib.get("href", "") as str; }
         }
         summary = clean_text(rss_text(rss_item, "description"));
         if not summary { summary = clean_text(rss_text(rss_item, "summary")); }
@@ -149,30 +109,18 @@ def parse_rss_source(source: dict) -> list[dict] {
         if not published { published = rss_text(rss_item, "published"); }
         if not published { published = rss_text(rss_item, "updated"); }
         image_url = "";
-        for image_tag in ["enclosure", "thumbnail", "content"] {
-            image_node: any = rss_item.find("{*}" + image_tag);
-            if image_node is not None {
-                candidate = image_node.attrib.get("url", "") as str;
-                if candidate { image_url = candidate; break; }
-            }
-        }
+        image_node: any = rss_item.find("{*}enclosure");
+        if image_node { image_url = image_node.attrib.get("url", "") as str; }
         if title and link {
-            region = source["region"] as str;
+            region = (source["region"] as str).lower();
+            category = "Local" if region == "local" else "World";
             output = output + [{"title":title, "snippet":summary[:200], "imageUrl":image_url,
                 "source":source["name"], "url":link, "publishedAt":normalize_date(published),
-                "category":detect_category(title, summary, hint), "region":region, "language":"en"}];
+                "category":category, "region":region, "language":"en"}];
         }
     }
     if len(output) == 0 { raise Exception("Valid XML contained no usable article items"); }
     return output;
-}
-
-def fetch_source_safe(source: dict) -> dict {
-    try {
-        return {"ok":True, "rows":parse_rss_source(source), "error":""};
-    } except Exception as error {
-        return {"ok":False, "rows":[], "error":str(error)};
-    }
 }
 
 def refresh_news_sources() -> dict {
@@ -184,20 +132,16 @@ def refresh_news_sources() -> dict {
     fresh_source_articles: dict = {};
     combined: list[dict] = [];
     success_count = 0;
-    results: list[dict] = [];
-    with ThreadPoolExecutor(max_workers=9) as pool {
-        results = list(pool.map(fetch_source_safe, NEWS_SOURCES));
-    }
-    for (source, result) in zip(NEWS_SOURCES, results) {
+    for source in NEWS_SOURCES {
         source_name = source["name"] as str;
-        if result["ok"] {
-            rows = result["rows"] as list[dict];
+        try {
+            rows = parse_rss_source(source);
             fresh_source_articles[source_name] = rows;
             fresh_status[source_name] = {"url":source["url"], "region":source["region"], "status":"ok", "items":len(rows), "error":""};
             combined = combined + rows;
             success_count = success_count + 1;
-        } else {
-            message = result["error"] as str;
+        } except Exception as error {
+            message = str(error);
             logger.warning("News source failed (%s, %s): %s", source_name, source["url"], message);
             prior_rows: list[dict] = cache.source_articles[source_name] as list[dict] if cache is not None and source_name in cache.source_articles else [];
             fresh_source_articles[source_name] = prior_rows;
@@ -207,17 +151,17 @@ def refresh_news_sources() -> dict {
     }
     if success_count > 0 {
         unique: list[dict] = [];
-        seen_keys: list[str] = [];
+        seen_urls: list[str] = [];
         seen_titles: list[str] = [];
         for item in combined {
-            clean_url = (item["url"] as str).split("#")[0];
-            article_key = clean_url.rstrip("/").lower();
+            article_url = (item["url"] as str).split("#")[0].rstrip("/").lower();
             title_key = re.sub(r"[^a-z0-9]+", " ", (item["title"] as str).lower()).strip();
-            if article_key and article_key not in seen_keys and title_key not in seen_titles {
-                item["id"] = article_key;
-                item["url"] = clean_url;
+            if article_url and article_url not in seen_urls and title_key not in seen_titles {
+                item["id"] = article_url;
+                item["url"] = article_url;
+                item["snippet"] = (item["snippet"] as str)[:200];
                 unique = unique + [item];
-                seen_keys = seen_keys + [article_key];
+                seen_urls = seen_urls + [article_url];
                 seen_titles = seen_titles + [title_key];
             }
         }
@@ -246,7 +190,7 @@ def:pub get_articles(region: str = "", category: str = "", q: str = "", page: in
     status: dict = {};
     updated_at = "";
     last_good_at = "";
-    stale = False;
+    stale = True;
     refresh_due = True;
     if len(cache_nodes) > 0 {
         cache = cache_nodes[0];
@@ -269,28 +213,21 @@ def:pub get_articles(region: str = "", category: str = "", q: str = "", page: in
         last_good_at = refresh["last_good_at"] as str;
         stale = refresh["stale"] as bool;
     }
+    filtered: list[dict] = [];
     region_key = region.strip().lower();
     category_key = category.strip().lower();
     query_key = q.strip().lower();
-    # "Local"/"World" are regions, not categories. Accept either spelling.
-    if region_key == "world" { region_key = "foreign"; }
-    if category_key in ["local", "world"] {
-        region_key = "local" if category_key == "local" else "foreign";
-        category_key = "";
-    }
-    if category_key == "all" { category_key = ""; }
-    filtered: list[dict] = [];
     for article in cached_articles {
         matches = True;
         if region_key and (article["region"] as str).lower() != region_key { matches = False; }
-        if category_key and (article["category"] as str).lower() != category_key { matches = False; }
+        if category_key and category_key != "all" {
+            art_cat = (article["category"] as str).lower();
+            art_reg = (article["region"] as str).lower();
+            if art_cat != category_key and art_reg != category_key { matches = False; }
+        }
         searchable = ((article["title"] as str) + " " + (article["snippet"] as str) + " " + (article["source"] as str)).lower();
         if query_key and query_key not in searchable { matches = False; }
-        if matches {
-            row = dict(article);
-            row["time"] = time_ago(article["publishedAt"] as str);
-            filtered = filtered + [row];
-        }
+        if matches { filtered = filtered + [article]; }
     }
     filtered = sorted(filtered, key=lambda (article: dict) { article["publishedAt"] as str; }, reverse=True);
     safe_page = max(1, page);
@@ -307,13 +244,11 @@ def:pub articles_rest(region: str = "", category: str = "", q: str = "", page: i
     return get_articles(region, category, q, page, page_size);
 }
 
-"""Generate exactly three concise English bullets from the supplied headline and snippet."""
 @restspec(method=HTTPMethod.POST, path="/summarize")
 def:pub summarize_article(title: str, snippet: str) -> dict {
     import from time { time }
-    # AI is optional: a missing key must never break the app.
-    if not (os.environ.get("Gemini_API_Key", "") or os.environ.get("MY_API_KEY", "")) {
-        return {"error":"ai_not_configured", "message":"AI summaries aren’t set up yet."};
+    if not api_key_val {
+        return {"error":"summary_unavailable", "message":"AI summary key (MY_API_KEY) is not configured in Settings > Environment."};
     }
     client_key = "anonymous";
     now_seconds = time();
@@ -336,6 +271,6 @@ def:pub summarize_article(title: str, snippet: str) -> dict {
     } except Exception as error {
         import logging;
         logging.getLogger("lankapulse.ai").warning("Article summary failed: %s", str(error));
-        return {"error":"summary_unavailable", "message":"AI summaries are temporarily unavailable. Please try again later."};
+        return {"error":"summary_unavailable", "message":"AI summaries are temporarily unavailable or key is invalid."};
     }
 }
